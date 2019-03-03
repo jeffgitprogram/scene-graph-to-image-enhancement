@@ -26,7 +26,7 @@
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 
-\title{Formatting instructions for NeurIPS 2018}
+\title{TODO}
 
 % The \author macro works with any number of authors. There are two commands
 % used to separate the names and addresses of multiple authors: \And and \AND.
@@ -68,7 +68,18 @@ Building on these methods, (What are we going to do)
 
 \section{Method}
 
-\section{Data}
+\section{Experiments}
+
+\subsection{Datasets}
+
+Similar to previous methods, we will evaluate our model using the COCO-Stuff [\citet{cocostuff}] and Visual Genome [\citet{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \citet{sg2im} and \citet{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image cootdinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
+
+\subsection{Evaluation}
+
+In order to evaluate a generated image we need a measure that answers 1) how realistic does the generated image appear? 2) how well can we recognize the different objects in the image? 3) How diverse are the generated images?
+
+To this end we use to Inception Score, which evaluates both the quality of generated images and diversity.
+
 
 \medskip
 \small
