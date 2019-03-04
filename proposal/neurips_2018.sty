@@ -278,7 +278,7 @@
     \thispagestyle{empty}
     \@maketitle
     \@thanks
-    \@notice
+    % \@notice
   \endgroup
   \let\maketitle\relax
   \let\thanks\relax
@@ -308,14 +308,14 @@
     \centering
     {\LARGE\bf \@title\par}
     \@bottomtitlebar
-    \if@submission
-      \begin{tabular}[t]{c}\bf\rule{\z@}{24\p@}
-        Anonymous Author(s) \\
-        Affiliation \\
-        Address \\
-        \texttt{email} \\
-      \end{tabular}%
-    \else
+    % \if@submission
+    %   \begin{tabular}[t]{c}\bf\rule{\z@}{24\p@}
+    %     Anonymous Author(s) \\
+    %     Affiliation \\
+    %     Address \\
+    %     \texttt{email} \\
+    %   \end{tabular}%
+    % \else
       \def\And{%
         \end{tabular}\hfil\linebreak[0]\hfil%
         \begin{tabular}[t]{c}\bf\rule{\z@}{24\p@}\ignorespaces%
@@ -325,20 +325,20 @@
         \begin{tabular}[t]{c}\bf\rule{\z@}{24\p@}\ignorespaces%
       }
       \begin{tabular}[t]{c}\bf\rule{\z@}{24\p@}\@author\end{tabular}%
-    \fi
+    % \fi
     \vskip 0.3in \@minus 0.1in
   }
 }
 
 % add conference notice to bottom of first page
-\newcommand{\ftype@noticebox}{8}
-\newcommand{\@notice}{%
-  % give a bit of extra room back to authors on first page
-  \enlargethispage{2\baselineskip}%
-  \@float{noticebox}[b]%
-    \footnotesize\@noticestring%
-  \end@float%
-}
+% \newcommand{\ftype@noticebox}{8}
+% \newcommand{\@notice}{%
+%   % give a bit of extra room back to authors on first page
+%   \enlargethispage{2\baselineskip}%
+%   \@float{noticebox}[b]%
+%     \footnotesize\@noticestring%
+%   \end@float%
+% }
 
 % abstract styling
 \renewenvironment{abstract}%

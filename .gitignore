@@ -5,3 +5,6 @@
 *.out
 *.gz
 *.pdf
+*.bib
+*.dvi
+*.xml

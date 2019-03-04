@@ -12,7 +12,7 @@
 %     \usepackage[preprint]{neurips_2018}
 
 % to compile a camera-ready version, add the [final] option, e.g.:
-     \usepackage[final]{neurips_2018}
+     \usepackage[nonatbib]{neurips_2018}
 
 % to avoid loading the natbib package, add option nonatbib:
 %     \usepackage[nonatbib]{neurips_2018}
@@ -58,7 +58,7 @@
 
 \section{Introduction}
 
-Generating realistic images is an important area in computer visision because it provides insights into how our algorithmns understand the visual world and has practical use for artists and graphic designers. With developments in machine learning and deep learning algorithmns, there has been a significant focus on new image generating algorithmns. \citet{t2im} and \citet{stackedgan} generate images using GANs conditioning on text. While these techniques generate realistic looking images when the input sentence describes simple scenes, it does not perform well when trying to generate images corresponding to more complex scenes. \citet{sg2im} instead generate images from scene graphs, which can explicitly represent objects and relationships in complex sentences. This method generates images that better preserve the structure in the given input, but still appears to struggle when there are a lot of objects with multiple relationships. \citet{sg2imgcontext} attempt to improve on this by introducing scene graph context to encourage generated images to appear realistic and better respect the scene graph relationships.
+Generating realistic images is an important area in computer vision because it provides insights into how our algorithmns understand the visual world and has practical use for artists and graphic designers. With developments in machine learning and deep learning algorithmns, there has been a significant focus on new image generating algorithmns. \cite{t2im} and \cite{stackedgan} generate images using GANs conditioning on text. While these techniques generate realistic looking images when the input sentence describes simple scenes, it does not perform well when trying to generate images corresponding to more complex scenes. \cite{sg2im} instead generate images from scene graphs, which can explicitly represent objects and relationships in complex sentences. This method generates images that better preserve the structure in the given input, but still appears to struggle when there are a lot of objects with multiple relationships. \cite{sg2imgcontext} attempt to improve on this by introducing scene graph context to encourage generated images to appear realistic and better respect the scene graph relationships.
 
 Building on these methods, (What are we going to do)
 
@@ -68,21 +68,71 @@ Building on these methods, (What are we going to do)
 
 \section{Method}
 
+Our framework builds from \cite{sg2im}. In their method a scene graph is encoded into object embedding vectors using a Graph Convolution Neural Network. These transformed into a scene layout using an object generator network consisting of a mask regression network to predict segmentation masks and a bounding box regression network to predict bounding boxes. These are combined to form the object layout and summing over all object layouts produces the scene layout. The scene layout and random noise is then passed to a Cascade Refinement Network [\cite{crn}] consisting up several upsampling modules of increasing size to generate the final image. We also incorporate a scene graph context [\cite{sg2imgcontext}] that pools features from the graph convolution neural network and are used to generate embeddings to provide context to the image generator.
+
 \section{Experiments}
 
 \subsection{Datasets}
 
-Similar to previous methods, we will evaluate our model using the COCO-Stuff [\citet{cocostuff}] and Visual Genome [\citet{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \citet{sg2im} and \citet{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image cootdinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
+Similar to previous methods, we will evaluate our model using the COCO-Stuff [\cite{cocostuff}] and Visual Genome [\cite{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image cootdinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
 
 \subsection{Evaluation}
 
 In order to evaluate a generated image we need a measure that answers 1) how realistic does the generated image appear? 2) how well can we recognize the different objects in the image? 3) How diverse are the generated images?
 
-To this end we use to Inception Score, which evaluates both the quality of generated images and diversity.
+To this end we use to Inception Score \cite{inception}, which evaluates both the quality of generated images and diversity by applying a pre-trained classifier on generated images. Correctly predicting class labels for objects in the generated image should correspond to the generated images looking realistic.
 
+\begin{thebibliography}{1}
 
 \medskip
 \small
-\bibliography{bib}
+
+
+\bibitem{stackedgan}
+Xun Huang, Yixuan Li, Omid Poursaeed, John Hopcroft and Serge Belongie.
+\newblock Stacked Generative Adversarial Networks, 2016;
+\newblock arXiv:1612.04357.
+
+\bibitem{t2im}
+Scott Reed, Zeynep Akata, Xinchen Yan, Lajanugen Logeswaran, Bernt Schiele and Honglak Lee.
+\newblock Generative Adversarial Text to Image Synthesis, 2016;
+\newblock arXiv:1605.05396.
+
+\bibitem{sg2im}
+Justin Johnson, Agrim Gupta and Li Fei-Fei.
+\newblock Image Generation from Scene Graphs, 2018;
+\newblock arXiv:1804.01622.
+
+\bibitem{sg2imgcontext}
+Subarna Tripathi, Anahita Bhiwandiwalla, Alexei Bastidas and Hanlin Tang.
+\newblock Using Scene Graph Context to Improve Image Generation, 2019;
+\newblock arXiv:1901.03762.
+
+\bibitem{cocostuff}
+Holger Caesar, Jasper Uijlings and Vittorio Ferrari.
+\newblock COCO-Stuff: Thing and Stuff Classes in Context, 2016;
+\newblock arXiv:1612.03716.
+
+\bibitem{visualgen}
+Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz, Stephanie Chen, Yannis Kalantidis, Li-Jia Li, David A. Shamma, Michael S. Bernstein and Fei-Fei Li.
+\newblock Visual Genome: Connecting Language and Vision Using Crowdsourced Dense Image Annotations, 2016;
+\newblock arXiv:1602.07332.
+
+\bibitem{inception}
+Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford and Xi Chen.
+\newblock Improved Techniques for Training GANs, 2016;
+\newblock arXiv:1606.03498.
+
+
+\bibitem{crn}
+Qifeng Chen and Vladlen Koltun.
+\newblock Photographic Image Synthesis with Cascaded Refinement Networks, 2017;
+\newblock arXiv:1707.09405.
+
+\end{thebibliography}
+
+% \medskip
+% \small
+% \bibliography{bib}
 
 \end{document}
