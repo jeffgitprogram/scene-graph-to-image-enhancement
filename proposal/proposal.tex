@@ -66,6 +66,20 @@ Our framework builds from \cite{sg2im} and \cite{sg2imgcontext}. In their method
 
 Building on these methods, instead of feeding the embedding to the first convolution layer of the CRN, we will pass the embedding to each upsampling layer in the CRN so that more relational context could be preserved during the upsample process. Another improvement is the skip layer connection in between the CRN upsampling layers. This helps the model to better preserve original features in the forward path.
 
+\subsection{Loss}
+
+As a baseline we follow \cite{sg2im} and \cite{sg2imgcontext} by training an image generator $G_{img}$ conditioned on inputs, scene layout, and scene context embedding, jointly with an image discriminator $D_{img}$ and object discriminator $D_{obj}$. The network is trained to minimize the weighted sum of size losses:
+\begin{itemize}
+\item \textit{Box Loss} $L_{box}$ penalizing the $L_1$ difference between coordinates of the ground-truth bounding box and predicted bounding box
+\item \textit{Mask Loss} $L_{mask}$ penalizing differences between ground truth masks and predicted masks
+\item \textit{Pixel loss} $L_{pix}$ penalizing the $L_1$ pixel-wise difference between ground-truth image and generated image
+\item \textit{Adversarial image loss} $L_{GAN}^{img}$ from $D_{img}$ that encourages generated images to be realistic and relevant to the scene context
+\item \textit{Adversarial object loss} $L_{GAN}^{obj}$ from $D_{obj}$ that encourages objects to appear realistic
+\item \textit{Auxiliary classifier loss} $L_{AC}^{obj}$ from $D_{obj}$ enouraging generated objects to be classified by the object discriminator
+\end{itemize}
+
+One of our goals will be to extend and improve this loss function. Following \textit{Odena et al.} \cite{auxgan} we hope to explore alternative ways to create an auxillary loss function in a way to improve training. We believe this is particularly important for this problem since \cite{sg2imgcontext} observe that using layout in the image discriminator lead to mode collapse. We hope defining a better loss function will help prevent mode collapse, resulting in better training and ideally better generated images.
+
 % \section{Related Work}
 
 
@@ -82,7 +96,7 @@ Building on these methods, instead of feeding the embedding to the first convolu
 
 \subsection{Datasets}
 
-Similar to previous methods, we will evaluate our model using the COCO-Stuff [\cite{cocostuff}] and Visual Genome [\cite{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image coordinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
+Similar to previous methods, we will evaluate our model using the COCO-Stuff \cite{cocostuff} and Visual Genome \cite{visualgen} datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image coordinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
 
 \subsection{Evaluation}
 
@@ -90,7 +104,7 @@ In order to evaluate a generated image we need a measure that answers 1) how rea
 
 To this end we use the Inception Score \cite{inception}, which evaluates both the quality of generated images and diversity by applying a pre-trained classifier on generated images. Correctly predicting class labels for objects in the generated image should correspond to the generated images looking realistic.
 
-In order to demonstrate the model's ability to generate diverse output images, we will be interpolating between various input object vectors to see how the result smoothly transform from one to the other.
+Aditionally we will explore measuring diversity by exploring the model's latent space using interpolation. \textit{Odena et al.} \cite{auxgan} show that one way to check whether a model overfits is to see whether or not one observes that discrete transitions in interpolated images and regions in latent space correspond to meaningful images. We will borrow this idea to see whether our generator learns meaningful semantic features.
 
 
 \begin{thebibliography}{1}
@@ -166,6 +180,11 @@ Li Fei-Fei, and Christopher D. Manning.
 Seunghoon Hongy, Dingdong Yangy, Jongwook Choiy, Honglak Lee.
 \newblock Inferring Semantic Layout for Hierarchical Text-to-Image Synthesis;
 \newblock arXiv:1801.05091.
+
+\bibitem{auxgan}
+Augustus Odena, Christopher Olah and Jonathon Shlens.
+\newblock Conditional Image Synthesis With Auxiliary Classifier GANs, 2016;
+\newblock arXiv:1610.09585.
 
 
 \end{thebibliography}
