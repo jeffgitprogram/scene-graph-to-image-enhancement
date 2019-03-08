@@ -89,7 +89,7 @@ Our framework builds from \cite{sg2im} and \cite{sg2imgcontext}. In their method
     \centerfig{0.8}{figs/COCO.png}
     \centering{Figure 1. An image annotated with segmentation mask and bounding box in COCO}
     \centerfig{0.8}{figs/vgenome.png}
-    \centering{Figure 2. An example of an image annotated with scene graph in Visual Genome}
+    \centering{Figure 2. An example of an image annotated with scene graph in Visual Genome \cite{visualgenome}}
 
 Similar to previous methods, we will train our model using the COCO-Stuff [\cite{cocostuff}] and Visual Genome [\cite{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext}, the segmentation masks and the bounding boxes labelled in COCO stuff can be used as ground truth to train the Graph Convolution Network to predict desired scene layout. On the other side, the Visual Genome dataset contains over 100k images annotated with their scene graphs, which are the important ground truth which will be used to train the automatic scene graph generation model to predict high-quality scene graphs. Lastly, we can use the image captions and annotation in COCO to construct scene graphs based on the 2D image coordinates of the objects. These scene graph will be passed to image generator to create scene layout first and then synthesize photographic images. COCO dataset's real life image collection, in which most images contains multiple object with relationships,is considered as the best training data to train the generator and discriminator of the GAN model jointly.  
 
