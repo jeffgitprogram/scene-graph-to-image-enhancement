@@ -54,34 +54,45 @@
 
 \maketitle
 
-\begin{abstract}
-
-\end{abstract}
-
 \section{Introduction}
 
-Generating realistic images is an important area in computer vision because it provides insights into how our algorithms understand the visual world and has practical use for artists and graphic designers. With developments in machine learning and deep learning algorithms, there has been a significant focus on new image generating algorithms. \cite{t2im} and \cite{stackedgan} generate images using GANs conditioning on text. While these techniques generate realistic looking images when the input sentence describes simple scenes, it does not perform well when trying to generate images corresponding to more complex scenes. \cite{sg2im} instead generates images from scene graphs, which can explicitly represent objects and relationships in complex sentences. This method generates images that better preserve the structure in the given input, but still appears to struggle when there are a lot of objects with multiple relationships. \cite{sg2imgcontext} attempts to improve on this by introducing scene graph context to encourage generated images to appear realistic and better respect the scene graph relationships.
+Generating realistic images is an important area in computer vision because it provides insights into how our algorithms understand the visual world and has practical use for artists and graphic designers. With developments in machine learning and deep learning algorithms, there has been a significant focus on new image generating algorithms. Generative adversarial networks (GANs) \cite{gan} have become one of the most popular neural network models used to generate realistic images. These models work by jointly training an image generator for image synthesis and a discriminator for determining whether the synthesized image is fake or real. Extending this model, \textit{Reed et al.} \cite{t2im} generate images using GANs conditioning on text and are able to generate high-resolution images. \textit{Huang et al.} \cite{stackedgan} further improve on this using a two-stage architecture resulting in 256x256 photo-realistic images. This approach shows us, importantly, that we can break up hard tasks into manageable sub-tasks to improve results, going from a coarse-to-fine level of detail in the process. \textit{Xu et al.} \cite{attengan} go further by leveraging the attention mechanism to draw images region-by-region conditioned on relevant words in a long text description, resulting in images with much more detail. Finally, Nvidia \cite{stylegan} incorporate style transfer to create a style-based image generator to replace the original generator in the GAN model, bringing the realism of synthesized images to an impressive level.
 
-Building on these methods, we will be implementing a fully connected network to embed scene graph context similar to \cite{sg2imgcontext}. However, instead of feeding the embedding to the first convolution layer of the Cascade Refinement Network (CRN), we will pass the embedding to each upsampling layer in the CRN so that more relational context could be preserved during the upsample process. Another improvement is the skip layer connection in between the CRN upsampling layers. This helps the model to better preserve original features in the forward path. 
+While these techniques generate realistic looking images when the input sentence describes simple scenes, they do not perform well when trying to generate images corresponding to more complex scenes. Branching from these GAN models is another approach to discover the role of scene graph and scene layout in generating images from text. These allows us to explicitly represent objects and relationships in complex sentences. \textit{Johnson et al.} \cite{sg2im} use graph convolution neural networks to extract features and objects from scene graphs and are able to generate images preserving relationships among multiple objects, but the images are low-resolution only and does is unable to generate good images when there are multiple relationships among the objects. \textit{Tripathi et al.} \cite{sg2imgcontext} attempt to improve on this by introducing scene graph context to encourage generated images to appear realistic and better respect the scene graph relationships.
 
-\section{Related Work}
-
-Generative Adversarial Networks (GANs) is one of the most popular neural network model which has been studied for generating realistic images from texts. This type of model jointly train a image generator for image synthesis and a discriminator for determining if the synthesized image is good or not. The GANs model was invented by Ian Goodfellow \cite{gan} in 2014. With this great tool,  Scott et al. \cite{t2im} developed a state-of-art GAN model to generate plausible images in specific categories. 
-
-Following that paper, there are emerging researches trying to generate realistic images with high-resolution. Han et al. \cite{stackedgan} stacked two GAN together to generate 256x256 phote-realistic images, the stage-I GAN draws a sketch of the object based on the given text, then the stage-II GAN refines the output from previous stage to generate high-resolution image with more detail. The approach in this work enlighten us that it is possible to break one hard task into multiple manageable sub-tasks. Inspired by the StackGAN approach, AttenGAN \cite{attengan} was propose to outperform the previous state-of-art. By leveraging the attention mechanism, this novel AttenGAN model draws images region by region according to relevant words in a long text description, and finally merges sub-regions into one, images generated by this model is filled with many more details. A latest work by NVIDIA \cite{stylegan} borrowed knowledge from style transfter literature to create a style-based image generator to replace the original generator in GAN model, images generated by this styleGAN bring the realism of synthesized images to a impressive level.
-
-Another important branch of GAN models is to discover the role of scene graph and scene layout in synthesizing images from text. Johnson et al.\cite{sg2im} proposed a image synthesis neural network not only combining the GAN with a recurrent neural network and also innovatively used a graph convolution neural network to extract features and objects from Scene Graph, the model in this paper can generate images which perserve relationship among multiple objects but are low-resolution only. Tripathi et al. \cite{sg2imgcontext} further improved the achievements in \cite{sg2im} by doing the following things, firstly features are pooled from the scene graph convolution network as scene context, then the scene context are fed into both image generation network and the image discriminator, as a result, not only the realism of the images was enhanced and also the object relationships are better preserved. These two papers greatly inspired our work.
-
-There are also papers focused on how to effectively generating scene graph from text descriptions. Schuster et al. \cite{scenegraph} proposed a model to automatically generating scene graph from natural language scene description and also a rule-based parser and a classifier-based parser which can be used for image synthesis. On the other side, Hongy et al. brough out a hierachical approach for generating semantic layout directly from text, the layout generator decomposes the generation process into multiple stages in a coarse-to-fine manner. This approach allows us to skip the step to generate scene graph and achieve a semantic layout for image generation directly.
-
-Besides the mainstream method using GANs, there are also approaches using cascaded refinement network (CRN) which is worth serious attention. Chen et al. \cite{crn} presented an approach to synthesizing images conditioned on scene layout using CRN, compared with GAN models, CRN has the advantages such as simpler structure, faster training speed and plausible high-resolution outcome image. 
-
-Our mission is to evaluate some of the work mentioned above and discover a novel way to improve the realism of synthesized images based on predecessor's reseach achievements.
-
+The goal of this project is to build on these methods. Specifically, we aim to improve the realism of synthesized images.
 
 \section{Method}
 
-Our framework builds from \cite{sg2im} and \cite{sg2imgcontext}. In their method a scene graph is encoded into object embedding vectors using a Graph Convolution Neural Network. These vectors are transformed into a scene layout using an object generator network consisting of a mask regression network to predict segmentation masks and a bounding box regression network to predict bounding boxes. These are combined to form the object layout and summing over all object layouts producing the scene layout. The scene layout and random noise is then passed to a Cascade Refinement Network (CRN) [\cite{crn}] consisting of several upsampling modules of increasing size to generate the final image. In particular, we implement a modified CRN in which skip layer connections are added to improve upsampling quality. We also incorporate a scene graph context [\cite{sg2imgcontext}] that pools features from the graph convolution neural network. The features are then embedded by a fully connected network and fed to each upsampling module in CRN to provide context to the image generator.
+Our framework builds from \cite{sg2im} and \cite{sg2imgcontext}. In their method a scene graph is encoded into object embedding vectors using a Graph Convolution Neural Network. These vectors are transformed into a scene layout using an object generator network consisting of a mask regression network to predict segmentation masks and a bounding box regression network to predict bounding boxes. These are combined to form the object layout and summing over all object layouts producing the scene layout. The scene layout and random noise is then passed to a Cascade Refinement Network (CRN) \cite{crn} consisting of several up-sampling modules of increasing size to generate the final image. In particular, we implement a modified CRN in which skip layer connections are added to improve up-sampling quality. We also incorporate a scene graph context \cite{sg2imgcontext} that pools features from the graph convolution neural network. The features are then embedded by a fully connected network and fed to each up-sampling module in CRN to provide context to the image generator.
+
+Building on these methods, instead of feeding the embedding to the first convolution layer of the CRN, we will pass the embedding to each up-sampling layer in the CRN so that more relational context could be preserved during the up-sample process. Another improvement is the skip layer connection in between the CRN up-sampling layers. This helps the model to better preserve original features in the forward path.
+
+\subsection{Loss}
+
+As a baseline we follow \cite{sg2im} and \cite{sg2imgcontext} by training an image generator $G_{img}$ conditioned on inputs, scene layout, and scene context embedding, jointly with an image discriminator $D_{img}$ and object discriminator $D_{obj}$. The network is trained to minimize the weighted sum of size losses:
+\begin{itemize}
+\item \textit{Box Loss} $L_{box}$ penalizing the $L_1$ difference between coordinates of the ground-truth bounding box and predicted bounding box
+\item \textit{Mask Loss} $L_{mask}$ penalizing differences between ground truth masks and predicted masks
+\item \textit{Pixel loss} $L_{pix}$ penalizing the $L_1$ pixel-wise difference between ground-truth image and generated image
+\item \textit{Adversarial image loss} $L_{GAN}^{img}$ from $D_{img}$ that encourages generated images to be realistic and relevant to the scene context
+\item \textit{Adversarial object loss} $L_{GAN}^{obj}$ from $D_{obj}$ that encourages objects to appear realistic
+\item \textit{Auxiliary classifier loss} $L_{AC}^{obj}$ from $D_{obj}$ encouraging generated objects to be classified by the object discriminator
+\end{itemize}
+
+One of our goals will be to extend and improve this loss function. Following \textit{Odena et al.} \cite{auxgan} we hope to explore alternative ways to create an auxiliary loss function in a way to improve training. We believe this is particularly important for this problem since \cite{sg2imgcontext} observe that using layout in the image discriminator lead to mode collapse. We hope defining a better loss function will help prevent mode collapse, resulting in better training and ideally better generated images.
+
+% \section{Related Work}
+
+
+% Another important branch of GAN models is to discover the role of scene graph and scene layout in synthesizing images from text. Johnson et al.\cite{sg2im} proposed a image synthesis neural network not only combining the GAN with a recurrent neural network and also innovatively used a graph convolution neural network to extract features and objects from Scene Graph, the model in this paper can generate images which perserve relationship among multiple objects but are low-resolution only. Tripathi et al. \cite{sg2imgcontext} further improved the achievements in \cite{sg2im} by doing the following things, firstly features are pooled from the scene graph convolution network as scene context, then the scene context are fed into both image generation network and the image discriminator, as a result, not only the realism of the images was enhanced and also the object relationships are better preserved. These two papers greatly inspired our work.
+
+% There are also papers focused on how to effectively generating scene graph from text descriptions. Schuster et al. \cite{scenegraph} proposed a model to automatically generating scene graph from natural language scene description and also a rule-based parser and a classifier-based parser which can be used for image synthesis. On the other side, Hongy et al. brough out a hierachical approach for generating semantic layout directly from text, the layout generator decomposes the generation process into multiple stages in a coarse-to-fine manner. This approach allows us to skip the step to generate scene graph and achieve a semantic layout for image generation directly.
+
+% Besides the mainstream method using GANs, there are also approaches using cascaded refinement network (CRN) which is worth serious attention. Chen et al. \cite{crn} presented an approach to synthesizing images conditioned on scene layout using CRN, compared with GAN models, CRN has the advantages such as simpler structure, faster training speed and plausible high-resolution outcome image.
+
+% Our mission is to evaluate some of the work mentioned above and discover a novel way to improve the realism of synthesized images based on predecessor's reseach achievements.
+
 
 \section{Experiments}
 
@@ -91,7 +102,11 @@ Our framework builds from \cite{sg2im} and \cite{sg2imgcontext}. In their method
     \centerfig{0.8}{figs/vgenome.png}
     \centering{Figure 2. An example of an image annotated with scene graph in Visual Genome \cite{visualgenome}}
 
+<<<<<<< HEAD
 Similar to previous methods, we will train our model using the COCO-Stuff [\cite{cocostuff}] and Visual Genome [\cite{visualgen}] datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext}, the segmentation masks and the bounding boxes labelled in COCO stuff can be used as ground truth to train the Graph Convolution Network to predict desired scene layout. On the other side, the Visual Genome dataset contains over 100k images annotated with their scene graphs, which are the important ground truth which will be used to train the automatic scene graph generation model to predict high-quality scene graphs. Lastly, we can use the image captions and annotation in COCO to construct scene graphs based on the 2D image coordinates of the objects. These scene graph will be passed to image generator to create scene layout first and then synthesize photographic images. COCO dataset's real life image collection, in which most images contains multiple object with relationships,is considered as the best training data to train the generator and discriminator of the GAN model jointly.  
+=======
+Similar to previous methods, we will evaluate our model using the COCO-Stuff \cite{cocostuff} and Visual Genome \cite{visualgen} datasets. The COCO-Stuff dataset contains 40k training and 5k validation annotated images with bounding boxes and segmentation masks, as well as providing 80 thing categories and 90 stuff categories. Similar to \cite{sg2im} and \cite{sg2imgcontext} we can use the image captions and annotation to construct scene graphs based on the 2D image coordinates of the objects. The Visual Genome dataset contains over 100k images annotated with their scene graphs.
+>>>>>>> proposal_update
 
 \subsection{Evaluation}
 
@@ -99,7 +114,9 @@ In order to evaluate a generated image we need a measure that answers 1) how rea
 
 To this end we use the Inception Score \cite{inception}, which evaluates both the quality of generated images and diversity by applying a pre-trained classifier on generated images. Correctly predicting class labels for objects in the generated image should correspond to the generated images looking realistic.
 
-In order to demonstrate the model's ability to generate diverse output images, we will be interpolating between various input object vectors to see how the result smoothly transform from one to the other.
+Additionally we will explore measuring diversity by exploring the model's latent space using interpolation. \textit{Odena et al.} \cite{auxgan} show that one way to check whether a model overfits is to see whether or not one observes that discrete transitions in interpolated images and regions in latent space correspond to meaningful images. We will borrow this idea to see whether our generator learns meaningful semantic features.
+
+\bibliographystyle{unsrt}
 \begin{thebibliography}{1}
 
 \medskip
@@ -174,10 +191,19 @@ Seunghoon Hongy, Dingdong Yangy, Jongwook Choiy, Honglak Lee.
 \newblock Inferring Semantic Layout for Hierarchical Text-to-Image Synthesis;
 \newblock arXiv:1801.05091.
 
+<<<<<<< HEAD
 \bibitem{visualgenome}
 Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz, Stephanie Chen, Yannis Kalantidis, Li-Jia Li, David A. Shamma, Michael S. Bernstein and Li Fei-Fei.
 \newblock Visual Genome: Connecting Language and Vision Using Crowdsourced Dense Image Annotations;
 \newblock arXiv:1602.07332
+=======
+\bibitem{auxgan}
+Augustus Odena, Christopher Olah and Jonathon Shlens.
+\newblock Conditional Image Synthesis With Auxiliary Classifier GANs, 2016;
+\newblock arXiv:1610.09585.
+
+
+>>>>>>> proposal_update
 \end{thebibliography}
 
 % \medskip
