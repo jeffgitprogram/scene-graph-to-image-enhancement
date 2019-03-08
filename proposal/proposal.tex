@@ -28,7 +28,7 @@
 \usepackage{graphicx}
 
 
-\title{TODO}
+\title{Improving Realism of Scene Graph to Image Generation}
 
 % The \author macro works with any number of authors. There are two commands
 % used to separate the names and addresses of multiple authors: \And and \AND.
@@ -116,6 +116,30 @@ In order to evaluate a generated image we need a measure that answers 1) how rea
 To this end we use the Inception Score \cite{inception}, which evaluates both the quality of generated images and diversity by applying a pre-trained classifier on generated images. Correctly predicting class labels for objects in the generated image should correspond to the generated images looking realistic.
 
 Additionally we will explore measuring diversity by exploring the model's latent space using interpolation. \textit{Odena et al.} \cite{auxgan} show that one way to check whether a model overfits is to see whether or not one observes that discrete transitions in interpolated images and regions in latent space correspond to meaningful images. We will borrow this idea to see whether our generator learns meaningful semantic features.
+
+\section{Project Management}
+
+\subsection{Milestones}
+
+\begin{tabular}{ll}
+March 2 & Finalize project structure\\
+March 6 & Get text-to-scene-graph model functioning\\
+March 7 & Finish proposal\\
+March 10 & Finish generating scene graphs for COCO dataset\\
+March 20 & Finish prototyping the GCN, CRN and GAN modules individually (Tentative)\\
+March 27 & Integrate all three modules with scene graph context network\\
+March 31 & Finish testings and start training
+\end{tabular}
+
+\subsection{Teamwork Breakdown}
+
+\begin{tabular}{ll}
+Text-to-scene-graph module & Johann, Jeffery, Jay\\
+GAN Module & Johann\\
+GCN Module & Jeffery\\
+CRN Module & Jay\\
+Integration, Training, Testing & Johann, Jeffery, Jay
+\end{tabular}
 
 \bibliographystyle{unsrt}
 \begin{thebibliography}{1}
