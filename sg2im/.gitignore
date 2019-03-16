@@ -1,0 +1,9 @@
+*.swp
+*.pyc
+*.DS_Store
+outputs/
+sg2im-models/
+env/
+datasets/
+.ipynb_checkpoints
+*.ipynb

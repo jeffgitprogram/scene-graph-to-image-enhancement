@@ -8,3 +8,5 @@
 *.bib
 *.dvi
 *.xml
+.ipynb_checkpoints
+*.ipynb
