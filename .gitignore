@@ -8,4 +8,8 @@
 *.bib
 *.dvi
 *.xml
+
 proposal/proposal latex.zip
+.ipynb_checkpoints
+*.ipynb
+
