@@ -24,8 +24,9 @@ class Context(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.fc = nn.Linear(input_dim, output_dim)
+        self.relu = nn.ReLu()
     
-    def forward(self, vecs):
+    def forward(self, vecs, pred_to_img):
         """
         Inputs:
         - vecs: Tensor of shape (O, D) giving vectors
@@ -34,8 +35,13 @@ class Context(nn.Module):
         - out: Tensor of shape (D,)
         """
         O, D = vecs.size()
-        pooled = vecs.sum(0)
-        out = self.fc(pooled)
+        N = pred_to_img.data.max().item() + 1
+        out = torch.zeros(N, D, dtype=vecs.dtype, device=vecs.device)
+        idx = pred_to_img.view(O,1).expand(O,D)
+        out = out.scatter_add(0, idx, vecs)
+        out = self.fc(out)
+        # TODO Do we need to add batch-norm?
+        out = self.relu(out)
         return out
         
         
