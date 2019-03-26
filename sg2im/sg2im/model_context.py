@@ -18,7 +18,7 @@ class Sg2ImModelContext(nn.Module):
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=32,
                context_embedding_dim=8, **kwargs):
-    super(Sg2ImModel, self).__init__()
+    super(Sg2ImModelContext, self).__init__()
 
     # We used to have some additional arguments: 
     # vec_noise_dim, gconv_mode, box_anchor, decouple_obj_predictions
@@ -39,11 +39,11 @@ class Sg2ImModelContext(nn.Module):
       self.gconv = nn.Linear(embedding_dim, gconv_dim)
     elif gconv_num_layers > 0:
       gconv_kwargs = {
-        'input_dim': embedding_dim,
-        'output_dim': gconv_dim,
-        'hidden_dim': gconv_hidden_dim,
-        'pooling': gconv_pooling,
-        'mlp_normalization': mlp_normalization,
+        'input_dim': embedding_dim, # 128
+        'output_dim': gconv_dim, # 128
+        'hidden_dim': gconv_hidden_dim, # 512
+        'pooling': gconv_pooling, # avg
+        'mlp_normalization': mlp_normalization, #none
       }
       self.gconv = GraphTripleConv(**gconv_kwargs)
 

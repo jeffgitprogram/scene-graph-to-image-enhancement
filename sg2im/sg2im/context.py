@@ -24,7 +24,7 @@ class Context(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.fc = nn.Linear(input_dim, output_dim)
-        self.relu = nn.ReLu()
+        self.relu = nn.ReLU()
     
     def forward(self, vecs, pred_to_img):
         """
