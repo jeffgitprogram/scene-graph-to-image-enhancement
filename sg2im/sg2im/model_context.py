@@ -1,19 +1,3 @@
-#!/usr/bin/python
-#
-# Copyright 2018 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import math
 import torch
 import torch.nn as nn
@@ -26,14 +10,14 @@ from sg2im.layout import boxes_to_layout, masks_to_layout
 from sg2im.layers import build_mlp
 from sg2im.context import Context
 
-class Sg2ImModel(nn.Module):
+class Sg2ImModelContext(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
                gconv_dim=128, gconv_hidden_dim=512,
                gconv_pooling='avg', gconv_num_layers=5,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
-               mask_size=None, mlp_normalization='none', layout_noise_dim=0,
-               **kwargs):
+               mask_size=None, mlp_normalization='none', layout_noise_dim=32,
+               context_embedding_dim=8, **kwargs):
     super(Sg2ImModel, self).__init__()
 
     # We used to have some additional arguments: 
@@ -44,6 +28,7 @@ class Sg2ImModel(nn.Module):
     self.vocab = vocab
     self.image_size = image_size
     self.layout_noise_dim = layout_noise_dim
+    self.context_embedding_dim = context_embedding_dim
 
     num_objs = len(vocab['object_idx_to_name'])
     num_preds = len(vocab['pred_idx_to_name'])
@@ -83,9 +68,15 @@ class Sg2ImModel(nn.Module):
 
     rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
+    
+    # Add context network
+    self.context_network = Context()
+    self.noise_layout = nn.Linear(context_embedding_dim + layout_noise_dim, 
+                                  (context_embedding_dim + layout_noise_dim)*64*64)
+        
 
     refinement_kwargs = {
-      'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
+      'dims': (gconv_dim + layout_noise_dim + context_embedding_dim,) + refinement_dims,
       'normalization': normalization,
       'activation': activation,
     }
@@ -105,7 +96,7 @@ class Sg2ImModel(nn.Module):
     layers.append(nn.Conv2d(dim, output_dim, kernel_size=1))
     return nn.Sequential(*layers)
 
-  def forward(self, objs, triples, obj_to_img=None,
+  def forward(self, objs, triples, obj_to_img=None, pred_to_img=None,
               boxes_gt=None, masks_gt=None):
     """
     Required Inputs:
@@ -160,13 +151,21 @@ class Sg2ImModel(nn.Module):
       layout_masks = masks_pred if masks_gt is None else masks_gt
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
+        
+    # Add context embedding
+    context = self.context_network(pred_vecs)
+    # TODO how to concatenate this?
 
     if self.layout_noise_dim > 0:
       N, C, H, W = layout.size()
-      noise_shape = (N, self.layout_noise_dim, H, W)
-      layout_noise = torch.randn(noise_shape, dtype=layout.dtype,
-                                 device=layout.device)
+      # Concatenate noise with new context embedding and make proper shape
+      noise = torch.randn(N, model.layout_noise_dim)
+      noise = noise.view(noise.size(0), self.layout_noise_dim)
+      z = torch.cat([noise,proj_c],1)
+      layout_noise = self.noise_layout(z)
       layout = torch.cat([layout, layout_noise], dim=1)
+        
+    
     img = self.refinement_net(layout)
     return img, boxes_pred, masks_pred, rel_scores
 
@@ -199,7 +198,7 @@ class Sg2ImModel(nn.Module):
       # We just got a single scene graph, so promote it to a list
       scene_graphs = [scene_graphs]
 
-    objs, triples, obj_to_img = [], [], []
+    objs, triples, obj_to_img, pred_to_img = [], [], [], []
     obj_offset = 0
     for i, sg in enumerate(scene_graphs):
       # Insert dummy __image__ object and __in_image__ relationships
@@ -219,15 +218,17 @@ class Sg2ImModel(nn.Module):
         if pred_idx is None:
           raise ValueError('Relationship "%s" not in vocab' % p)
         triples.append([s + obj_offset, pred_idx, o + obj_offset])
+        # To pool context we need to match relations to images
+        pred_to_img.append(i) 
       obj_offset += len(sg['objects'])
     device = next(self.parameters()).device
     objs = torch.tensor(objs, dtype=torch.int64, device=device)
     triples = torch.tensor(triples, dtype=torch.int64, device=device)
     obj_to_img = torch.tensor(obj_to_img, dtype=torch.int64, device=device)
-    return objs, triples, obj_to_img
+    pred_to_img = torch.tensor(pred_to_img, dtype=torch.int64, device=device)
+    return objs, triples, obj_to_img, pred_to_img
 
   def forward_json(self, scene_graphs):
     """ Convenience method that combines encode_scene_graphs and forward. """
-    objs, triples, obj_to_img = self.encode_scene_graphs(scene_graphs)
-    return self.forward(objs, triples, obj_to_img)
-
+    objs, triples, obj_to_img, pred_to_img = self.encode_scene_graphs(scene_graphs)
+    return self.forward(objs, triples, obj_to_img, pred_to_img)
