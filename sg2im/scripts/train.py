@@ -36,6 +36,7 @@ from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
 from sg2im.losses import get_gan_losses
 from sg2im.metrics import jaccard
 from sg2im.model import Sg2ImModel
+from sg2im.model_graphblock import Sg2ImModelGB
 from sg2im.utils import int_tuple, float_tuple, str_tuple
 from sg2im.utils import timeit, bool_flag, LossManager
 
@@ -139,6 +140,8 @@ parser.add_argument('--checkpoint_name', default='checkpoint')
 parser.add_argument('--checkpoint_start_from', default=None)
 parser.add_argument('--restore_from_checkpoint', default=False, type=bool_flag)
 
+# Model options
+parser.add_argument('--model_type', default='sg2im', type=str)
 
 def add_loss(total_loss, curr_loss, loss_dict, loss_name, weight=1):
   curr_loss = curr_loss * weight
@@ -162,7 +165,10 @@ def build_model(args, vocab):
   if args.checkpoint_start_from is not None:
     checkpoint = torch.load(args.checkpoint_start_from)
     kwargs = checkpoint['model_kwargs']
-    model = Sg2ImModel(**kwargs)
+    if args.model_type=='sg2im':
+        model = Sg2ImModel(**kwargs)
+    elif args.model_type=='sg2imgb':
+        model = Sg2ImModelGB(**kwargs)
     raw_state_dict = checkpoint['model_state']
     state_dict = {}
     for k, v in raw_state_dict.items():
@@ -185,7 +191,10 @@ def build_model(args, vocab):
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
     }
-    model = Sg2ImModel(**kwargs)
+    if args.model_type=='sg2im':
+        model = Sg2ImModel(**kwargs)
+    elif args.model_type=='sg2imgb':
+        model = Sg2ImModelGB(**kwargs)
   return model, kwargs
 
 
