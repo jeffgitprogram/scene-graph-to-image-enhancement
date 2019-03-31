@@ -88,9 +88,9 @@ class NodeUpdate(nn.Module):
         return out
     
 class GraphTripleConvNet(nn.Module):
-  """ A sequence of scene graph convolution layers  """
+    """ A sequence of scene graph convolution layers  """
     def __init__(self, input_dim, num_layers=5, hidden_dim=512, pooling='avg',
-               mlp_normalization='none'):
+                 mlp_normalization='none'):
         super(GraphTripleConvNet, self).__init__()
 
         self.num_layers = num_layers
