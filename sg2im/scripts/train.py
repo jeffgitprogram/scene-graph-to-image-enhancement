@@ -165,10 +165,10 @@ def build_model(args, vocab):
   if args.checkpoint_start_from is not None:
     checkpoint = torch.load(args.checkpoint_start_from)
     kwargs = checkpoint['model_kwargs']
-    if args.model_type=='sg2im':
-        model = Sg2ImModel(**kwargs)
-    elif args.model_type=='sg2imgb':
+    if args.model_type=='sg2imgb':
         model = Sg2ImModelGB(**kwargs)
+    else:
+        model = Sg2ImModel(**kwargs)
     raw_state_dict = checkpoint['model_state']
     state_dict = {}
     for k, v in raw_state_dict.items():
@@ -191,10 +191,10 @@ def build_model(args, vocab):
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
     }
-    if args.model_type=='sg2im':
-        model = Sg2ImModel(**kwargs)
-    elif args.model_type=='sg2imgb':
+    if args.model_type=='sg2imgb':
         model = Sg2ImModelGB(**kwargs)
+    else:
+        model = Sg2ImModel(**kwargs)
   return model, kwargs
 
 
