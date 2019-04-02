@@ -45,7 +45,7 @@ class Sg2ImModelGB(nn.Module):
         'pooling': gconv_pooling, # avg
         'mlp_normalization': mlp_normalization, #none
       }
-      self.gconv = GraphTripleConv(**gconv_kwargs)
+      self.gconv = GraphTripleConvNet(**gconv_kwargs)
 
     self.gconv_net = None
     if gconv_num_layers > 1:
