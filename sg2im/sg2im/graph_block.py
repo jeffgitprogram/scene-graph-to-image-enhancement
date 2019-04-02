@@ -102,7 +102,7 @@ class GraphTripleConvNet(nn.Module):
           'mlp_normalization': mlp_normalization,
         }
         for _ in range(self.num_layers):
-          self.gconvs.append(GraphTripleConv(**gconv_kwargs))
+          self.gconvs.append(GraphBlock(**gconv_kwargs))
 
     def forward(self, obj_vecs, pred_vecs, edges):
         for i in range(self.num_layers):
