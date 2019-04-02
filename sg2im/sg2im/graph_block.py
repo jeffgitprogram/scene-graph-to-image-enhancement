@@ -35,7 +35,7 @@ class GraphBlock(nn.Module):
         new_s_vecs = new_t_vecs[:, :Din]
         new_o_vecs = new_t_vecs[:, Din:Din+Dout]
         
-        pooled_obj_vecs = torch.zeros(O, H)
+        pooled_obj_vecs = torch.zeros(O, H, dtype=dtype, device=device)
         s_idx_exp = s_idx.view(-1, 1).expand_as(new_s_vecs)
         o_idx_exp = o_idx.view(-1, 1).expand_as(new_o_vecs)
         pooled_obj_vecs = pooled_obj_vecs.scatter_add(0, s_idx_exp, new_s_vecs)
