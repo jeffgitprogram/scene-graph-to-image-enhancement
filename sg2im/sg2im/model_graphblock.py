@@ -18,7 +18,7 @@ class Sg2ImModelGB(nn.Module):
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=32,
                context_embedding_dim=8, **kwargs):
-    super(Sg2ImModelContext, self).__init__()
+    super(Sg2ImModelGB, self).__init__()
 
     # We used to have some additional arguments: 
     # vec_noise_dim, gconv_mode, box_anchor, decouple_obj_predictions
