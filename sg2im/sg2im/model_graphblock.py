@@ -40,7 +40,6 @@ class Sg2ImModelGB(nn.Module):
     elif gconv_num_layers > 0:
       gconv_kwargs = {
         'input_dim': embedding_dim, # 128
-        'output_dim': gconv_dim, # 128
         'hidden_dim': gconv_hidden_dim, # 512
         'pooling': gconv_pooling, # avg
         'mlp_normalization': mlp_normalization, #none
