@@ -231,3 +231,30 @@ def build_mlp(dim_list, activation='relu', batch_norm='none',
       layers.append(nn.Dropout(p=dropout))
   return nn.Sequential(*layers)
 
+class SGEmbedding(nn.Module):
+    """
+    Factor out Embeddings so that projections to proper size
+    are handle outside of GCN
+    Inputs:
+    - num_objs: Number of objects in vocab
+    - num_preds: Number of predicats in vocab
+    - embedding_dim: Dimension of embedding
+    - output_dim: Dimension used as input into GraphBlock
+    """
+    def __init__(self, num_objs, num_preds, embedding_dim, output_dim):
+        super(SGEmbedding, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.output_dim = output_dim
+        self.obj_embeddings = nn.Embedding(num_objs + 1, embedding_dim)
+        self.pred_embeddings = nn.Embedding(num_preds, embedding_dim)
+        self.obj_embedding_to_hidden = nn.Linear(embedding_dim, output_dim)
+        self.pred_embedding_to_hidden = nn.Linear(embedding_dim, output_dim)
+        self.relu = nn.ReLU()
+    
+    def forward(self, objs, preds):
+        obj_vecs = self.obj_embeddings(objs)
+        obj_vecs = self.relu(self.obj_embedding_to_hidden(obj_vecs))
+        pred_vecs = self.pred_embeddings(preds)
+        pred_vecs = self.relu(self.pred_embedding_to_hidden(pred_vecs))
+        return obj_vecs, pred_vecs
+        
