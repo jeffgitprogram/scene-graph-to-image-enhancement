@@ -29,7 +29,7 @@ from sg2im.context import Context
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
                gconv_dim=128, gconv_hidden_dim=512,
-               gconv_pooling='avg', gconv_num_layers=5,
+               gconv_pooling='avg', gconv_num_layers=5, emd_dim = 128,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=0,
@@ -86,6 +86,7 @@ class Sg2ImModel(nn.Module):
 
     refinement_kwargs = {
       'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
+      'emb_dim': emb_dim,
       'normalization': normalization,
       'activation': activation,
     }
