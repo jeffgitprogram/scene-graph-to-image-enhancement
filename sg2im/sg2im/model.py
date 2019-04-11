@@ -28,8 +28,8 @@ from sg2im.context import Context
 
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
-               gconv_dim=128, gconv_hidden_dim=512,
-               gconv_pooling='avg', gconv_num_layers=5, emd_dim = 128,
+               gconv_dim=128, gconv_hidden_dim=512, lstm_hid_dim=1500,
+               gconv_pooling='avg', gconv_num_layers=5, emb_dim=128,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=0,
@@ -84,9 +84,10 @@ class Sg2ImModel(nn.Module):
     rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
 
+    self.context = Context(input_dim=lstm_hid_dim, noise_dim=layout_noise_dim, output_dim=emb_dim)
+    
     refinement_kwargs = {
-      'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
-      'emb_dim': emb_dim,
+      'dims': (gconv_dim + layout_noise_dim + emb_dim,) + refinement_dims,
       'normalization': normalization,
       'activation': activation,
     }
@@ -162,7 +163,13 @@ class Sg2ImModel(nn.Module):
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
 
-    if self.layout_noise_dim > 0:
+    # TODO Add pre-trained LSTM model
+    lstm_hidden = None
+    
+    if lstm_hidden:
+        lstm_embedding = Context(lstm_hidden)
+        layout = torch.cat([layout, lstm_embedding], dim=1)
+    elif self.layout_noise_dim > 0:  # if not using lstm embedding
       N, C, H, W = layout.size()
       noise_shape = (N, self.layout_noise_dim, H, W)
       layout_noise = torch.randn(noise_shape, dtype=layout.dtype,
