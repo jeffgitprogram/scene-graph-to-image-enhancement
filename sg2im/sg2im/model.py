@@ -44,6 +44,7 @@ class Sg2ImModel(nn.Module):
     self.vocab = vocab
     self.image_size = image_size
     self.layout_noise_dim = layout_noise_dim
+    self.lstm_hid_dim = lstm_hid_dim
 
     num_objs = len(vocab['object_idx_to_name'])
     num_preds = len(vocab['pred_idx_to_name'])
@@ -108,7 +109,7 @@ class Sg2ImModel(nn.Module):
     return nn.Sequential(*layers)
 
   def forward(self, objs, triples, obj_to_img=None,
-              boxes_gt=None, masks_gt=None):
+              boxes_gt=None, masks_gt=None, lstm_hidden=None):
     """
     Required Inputs:
     - objs: LongTensor of shape (O,) giving categories for all objects
@@ -121,6 +122,7 @@ class Sg2ImModel(nn.Module):
       all objects are assumed to belong to the same image.
     - boxes_gt: FloatTensor of shape (O, 4) giving boxes to use for computing
       the spatial layout; if not given then use predicted boxes.
+    - lstm_hidden: Tensor of shape (N, self.lstm_hid_dim)
     """
     O, T = objs.size(0), triples.size(0)
     s, p, o = triples.chunk(3, dim=1)           # All have shape (T, 1)
@@ -162,11 +164,10 @@ class Sg2ImModel(nn.Module):
       layout_masks = masks_pred if masks_gt is None else masks_gt
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
-
-    # TODO Add pre-trained LSTM model
-    lstm_hidden = None
     
     if lstm_hidden:
+        assert lstm_hidden.size()[0] is layout.size()[0]
+        assert lstm_hidden.size()[1] is self.lstm_hid_dim
         lstm_embedding = Context(lstm_hidden)
         layout = torch.cat([layout, lstm_embedding], dim=1)
     elif self.layout_noise_dim > 0:  # if not using lstm embedding
