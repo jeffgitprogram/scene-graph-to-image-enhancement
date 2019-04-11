@@ -59,7 +59,7 @@ class Sg2ImModelContext(nn.Module):
       self.gconv_net = GraphTripleConvNet(**gconv_kwargs)
 
     box_net_dim = 4
-    box_net_layers = [gconv_dim, gconv_hidden_dim, box_net_dim]
+    box_net_layers = [gconv_dim+context_embedding_dim, gconv_hidden_dim, box_net_dim]
     self.box_net = build_mlp(box_net_layers, batch_norm=mlp_normalization)
 
     self.mask_net = None
@@ -71,12 +71,12 @@ class Sg2ImModelContext(nn.Module):
     
     # Add context network
     self.context_network = Context()
-    self.noise_layout = nn.Linear(context_embedding_dim + layout_noise_dim, 
-                                  (context_embedding_dim + layout_noise_dim)*64*64)
+#     self.noise_layout = nn.Linear(context_embedding_dim + layout_noise_dim, 
+#                                   (context_embedding_dim + layout_noise_dim)*64*64)
         
 
     refinement_kwargs = {
-      'dims': (gconv_dim + layout_noise_dim + context_embedding_dim,) + refinement_dims,
+      'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
       'normalization': normalization,
       'activation': activation,
     }
@@ -130,7 +130,13 @@ class Sg2ImModelContext(nn.Module):
     if self.gconv_net is not None:
       obj_vecs, pred_vecs = self.gconv_net(obj_vecs, pred_vecs, edges)
 
-    boxes_pred = self.box_net(obj_vecs)
+    # Bounding boxes should be conditioned on context
+    # because layout is finalized at this step
+    context = self.context_network(pred_vecs, pred_to_img)
+    # Concatenate global context to each object depending on which image it is from
+    # Probably not an efficient way to do this
+    obj_with_context = torch.stack([torch.cat((obj_vecs[i],context[obj_to_img[i].item()])) for i in range(O)])
+    boxes_pred = self.box_net(obj_with_context)
 
     masks_pred = None
     if self.mask_net is not None:
@@ -152,18 +158,12 @@ class Sg2ImModelContext(nn.Module):
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
         
-    # Add context embedding
-    context = self.context_network(pred_vecs)
-    # TODO how to concatenate this?
-
     if self.layout_noise_dim > 0:
-      N, C, H, W = layout.size()
-      # Concatenate noise with new context embedding and make proper shape
-      noise = torch.randn(N, model.layout_noise_dim)
-      noise = noise.view(noise.size(0), self.layout_noise_dim)
-      z = torch.cat([noise,proj_c],1)
-      layout_noise = self.noise_layout(z)
-      layout = torch.cat([layout, layout_noise], dim=1)
+        N, C, H, W = layout.size()
+        noise_shape = (N, self.layout_noise_dim, H, W)
+        layout_noise = torch.randn(noise_shape, dtype=layout.dtype,
+                                 device=layout.device)
+        layout = torch.cat([layout, layout_noise], dim=1)
         
     
     img = self.refinement_net(layout)
