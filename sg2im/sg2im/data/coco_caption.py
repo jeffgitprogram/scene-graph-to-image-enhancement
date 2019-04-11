@@ -14,6 +14,7 @@ warnings.filterwarnings('ignore')
 
 import mxnet as mx
 from mxnet import gluon
+from mxnet import nd
 import gluonnlp as nlp
 
 from .utils import imagenet_preprocess, Resize
@@ -182,7 +183,25 @@ class CocoCaptionDataSet(Dataset):
         caption = random.choice(captions)
         new_img_to_captions[image_id].append(caption)
     self.image_id_to_captions = new_img_to_captions
-
+    # new_img_to_captions = defaultdict(list)
+    # words = []
+    # for image_id in self.image_ids:
+    #     caption = self.image_id_to_captions[image_id]
+    #     #for caption in self.image_id_to_captions[image_id]:
+    #     caption = ['<bos>'] + self.tokenizer(caption[0].lower()) + ['<sos>']
+    #     words.extend([word for word in caption])
+    #     new_img_to_captions[image_id]= caption
+    # self.counter = nlp.data.count_tokens(words)
+    # self.sentvocab = nlp.Vocab(self.counter)
+    # self.image_id_to_captions = new_img_to_captions
+    #
+    # new_img_to_captions = defaultdict(list)
+    # for image_id in self.image_ids:
+    #     caption =  self.image_id_to_captions[image_id]
+    #     length = len(caption)
+    #     caption = self.sentvocab[caption]
+    #     new_img_to_captions[image_id]=(caption,length)
+    # self.image_id_to_captions = new_img_to_captions
 
   def set_image_size(self, image_size):
         print('called set_image_size', image_size)
@@ -233,21 +252,31 @@ class CocoCaptionDataSet(Dataset):
             with PIL.Image.open(f) as image:
                 image = self.transform(image.convert('RGB'))
 
-        captions = []
-        for caption in self.image_id_to_captions[image_id]:
-            caption = ['<bos>'] + self.tokenizer(caption.lower()) + ['<sos>']
-            captions.append(caption)
-        return image,captions
+        # captions = []
+        # for caption in self.image_id_to_captions[image_id]:
+        #     caption = ['<bos>'] + self.tokenizer(caption.lower()) + ['<sos>']
+        #     captions.append(caption)
+        caption = self.image_id_to_captions[image_id]
+        return image,caption
 
-  def getCounterandVocab(self):
-      captions = []
+  def coco_numerize_captions(self,vocab):
+      # captions = []
+      # for image_id in self.image_ids:
+      #     for caption in self.image_id_to_captions[image_id]:
+      #         caption = ['<bos>'] + self.tokenizer(caption.lower()) + ['<sos>']
+      #         captions.append(caption)
+      # counter = nlp.data.count_tokens([word for sentence in captions for word in sentence])
+      # vocab = nlp.Vocab(counter)
+      #
+      # return counter,vocab
+      new_img_to_captions = defaultdict(list)
       for image_id in self.image_ids:
-          for caption in self.image_id_to_captions[image_id]:
-              caption = ['<bos>'] + self.tokenizer(caption.lower()) + ['<sos>']
-              captions.append(caption)
-      counter = nlp.data.count_tokens([word for sentence in captions for word in sentence])
-      vocab = nlp.Vocab(counter)
-      return counter,vocab
+          caption = self.image_id_to_captions[image_id]
+          caption = self.tokenizer(caption[0].lower()) + ['<eos>']
+          length = len(caption)
+          caption = vocab[caption]
+          new_img_to_captions[image_id] = (caption, length)
+      self.image_id_to_captions = new_img_to_captions
 
 
 
@@ -257,12 +286,20 @@ def coco_caption_collate_fn(batch):
     DataLoader. Returns a tuple of the following:
 
     """
-    all_captions,all_imgs = [],[]
+    all_captions,all_imgs,all_caption_lens = [],[],[]
     #all_cap_to_img = []
-    for i, (img,captions) in enumerate(batch):
+    for i, (img,(caption,length)) in enumerate(batch):
         #C = len(captions)
         all_imgs.append(img[None])
-        all_captions.append(captions)
+        all_captions.append(caption)
+        all_caption_lens.append(length)
         #all_cap_to_img.extend(np.full(C,i))
-    out = (all_imgs,all_captions)
+    max_len = max(all_caption_lens)
+    batch_size = len(all_caption_lens)
+    new_array = nd.zeros((batch_size, max_len), dtype='int')
+    for i in range(batch_size):
+        new_array[i, :all_caption_lens[i]] = all_captions[i]
+    all_captions = new_array
+    all_caption_lens = nd.array(all_caption_lens)
+    out = (all_imgs,all_captions,all_caption_lens)
     return out

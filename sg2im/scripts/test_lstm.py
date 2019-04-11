@@ -125,9 +125,10 @@ def build_coco_caption_dsets(args):
   return train_dset
 
 
-def build_caption_loaders(args):
+def build_caption_loaders(args,vocab):
 
     train_dset = build_coco_caption_dsets(args)
+    train_dset.coco_numerize_captions(vocab)
     collate_fn = coco_caption_collate_fn
 
     loader_kwargs = {
@@ -137,21 +138,65 @@ def build_caption_loaders(args):
         'batchify_fn': collate_fn,
     }
     train_loader = nlp.data.ShardedDataLoader(train_dset, **loader_kwargs)
-    counter, vocab = train_dset.getCounterandVocab()
+    #vocab, counter = train_dset.getCounterandVocab()
     #loader_kwargs['shuffle'] = args.shuffle_val
     #val_loader = nlp.data.dataloader(val_dset, **loader_kwargs)
-    return train_loader,counter,vocab#, val_loader
+    return train_loader#, val_loader
 def main(args):
     print("start")
     print(args)
     num_gpus = 1
     context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
+    lstm, vocab = nlp.model.get_model('standard_lstm_lm_1500',
+                                      dataset_name='wikitext-2',
+                                      pretrained=True,
+                                      ctx=context[0])
+
     #train_dset = build_coco_caption_dsets(args)
-    train_loader,counter,vocab = build_caption_loaders(args)
-    awd_model_name = 'awd_lstm_lm_1150'
-    awd_model,vocab = nlp.model.get_model(awd_model_name,)
+    train_loader = build_caption_loaders(args,vocab)
+    class CaptionEncoder(gluon.HybridBlock):
+      """Network for sentiment analysis."""
+      def __init__(self, dropout, prefix=None, params=None):
+            super(CaptionEncoder, self).__init__(prefix=prefix, params=params)
+            with self.name_scope():
+                self.embedding = None # will set with lm embedding later
+                self.encoder = None # will set with lm encoder later
+
+
+      def hybrid_forward(self, F, data,hiddens, valid_length): # pylint: disable=arguments-differ
+            encoded,hiddens = self.encoder(self.embedding(data),hiddens)  # Shape(T, N, C)
+            return encoded,hiddens
+
+    new_model = CaptionEncoder()
+    new_model.embedding = lstm.embedding
+    new_model.encoder = lstm.encoder
+    new_model.begin_state = lstm.begin_state
+    new_model.hybridize()
+
+
+    print(new_model)
+
+    def get_features(data, valid_lengths):
+        # length = data.shape[1]
+        batch_size = data.shape[0]
+        hidden_state = new_model.begin_state(func=mx.nd.zeros, batch_size=batch_size, ctx=context[0])
+        # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
+        # mask = mask < valid_lengths.expand_dims(1).astype('float32')
+        print(data.shape)
+        data = mx.nd.transpose(data)
+        o = lstm.embedding(data)
+        # print(o.shape)
+        output, hidden = lstm.encoder(o, hidden_state)
+        print(output.shape)
+        print(hidden[0].shape)
+        return (output, hidden)
+
     for batch in train_loader:
-        img,captions= batch
+        imgs,captions,lens= batch
+        data = captions.as_in_context(context[0])
+        length = lens.as_in_context(context[0])
+        features, hiddens = get_features(data, length)
+        print([x.shape for x in hiddens])
 
 
 
