@@ -301,5 +301,6 @@ def coco_caption_collate_fn(batch):
         new_array[i, :all_caption_lens[i]] = all_captions[i]
     all_captions = new_array
     all_caption_lens = nd.array(all_caption_lens)
+    all_imgs = torch.cat(all_imgs)
     out = (all_imgs,all_captions,all_caption_lens)
     return out

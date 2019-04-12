@@ -12,11 +12,13 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 import warnings
 warnings.filterwarnings('ignore')
 import mxnet as mx
 from mxnet import gluon
+from mxnet import nd
 import gluonnlp as nlp
 
 from sg2im.data import imagenet_deprocess_batch
@@ -129,15 +131,24 @@ def build_caption_loaders(args,vocab):
 
     train_dset = build_coco_caption_dsets(args)
     train_dset.coco_numerize_captions(vocab)
+    print("Captions has been numerized./n")
     collate_fn = coco_caption_collate_fn
 
+    # loader_kwargs = {
+    #     'batch_size': args.batch_size,
+    #     'num_workers': args.loader_num_workers,
+    #     'shuffle': True,
+    #     'batchify_fn': collate_fn,
+    # }
+    #train_loader = nlp.data.ShardedDataLoader(train_dset, **loader_kwargs)
     loader_kwargs = {
         'batch_size': args.batch_size,
         'num_workers': args.loader_num_workers,
         'shuffle': True,
-        'batchify_fn': collate_fn,
+        'collate_fn': collate_fn,
     }
-    train_loader = nlp.data.ShardedDataLoader(train_dset, **loader_kwargs)
+    train_loader = DataLoader(train_dset,**loader_kwargs)
+    print("data has been loaded")
     #vocab, counter = train_dset.getCounterandVocab()
     #loader_kwargs['shuffle'] = args.shuffle_val
     #val_loader = nlp.data.dataloader(val_dset, **loader_kwargs)
@@ -151,19 +162,20 @@ def main(args):
                                       dataset_name='wikitext-2',
                                       pretrained=True,
                                       ctx=context[0])
+    print(vocab)
 
     #train_dset = build_coco_caption_dsets(args)
     train_loader = build_caption_loaders(args,vocab)
     class CaptionEncoder(gluon.HybridBlock):
       """Network for sentiment analysis."""
-      def __init__(self, dropout, prefix=None, params=None):
+      def __init__(self, prefix=None, params=None):
             super(CaptionEncoder, self).__init__(prefix=prefix, params=params)
             with self.name_scope():
                 self.embedding = None # will set with lm embedding later
                 self.encoder = None # will set with lm encoder later
 
 
-      def hybrid_forward(self, F, data,hiddens, valid_length): # pylint: disable=arguments-differ
+      def hybrid_forward(self, F, data,hiddens): # pylint: disable=arguments-differ
             encoded,hiddens = self.encoder(self.embedding(data),hiddens)  # Shape(T, N, C)
             return encoded,hiddens
 
@@ -184,19 +196,23 @@ def main(args):
         # mask = mask < valid_lengths.expand_dims(1).astype('float32')
         print(data.shape)
         data = mx.nd.transpose(data)
-        o = lstm.embedding(data)
-        # print(o.shape)
-        output, hidden = lstm.encoder(o, hidden_state)
-        print(output.shape)
-        print(hidden[0].shape)
+        output, (hidden, cell) = new_model(data, hidden_state)
+        #hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
+        print(hidden.shape)
         return (output, hidden)
 
     for batch in train_loader:
         imgs,captions,lens= batch
+        imgs = imgs.cuda()
         data = captions.as_in_context(context[0])
         length = lens.as_in_context(context[0])
         features, hiddens = get_features(data, length)
-        print([x.shape for x in hiddens])
+        hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+        hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
+        print(hiddens.size())
+        print(imgs.size())
+
+
 
 
 

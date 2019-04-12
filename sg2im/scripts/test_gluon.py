@@ -14,7 +14,7 @@ import mxnet as mx
 from mxnet import gluon
 from mxnet import nd
 import gluonnlp as nlp
-
+import torch
 
 print("start")
 num_gpus = 1
@@ -34,7 +34,7 @@ batch_size = len(list)
 new_array = nd.zeros((batch_size,max_len),dtype='int')
 for i in range(batch_size):
     new_array[i,:lens[i]] = list[i]
-print(new_array)
+#print(new_array)
 lens = nd.array(lens)
 elmo_intro_file = 'elmo_intro.txt'
 with io.open(elmo_intro_file, 'w', encoding='utf8') as f:
@@ -46,12 +46,12 @@ tokenizer = nlp.data.NLTKMosesTokenizer()
 dataset = dataset.transform(tokenizer)
 dataset = dataset.transform(lambda x: ['<bos>'] + x + ['<eos>'])
 print(dataset[2])  # print the same tokenized sentence
-#counter = nlp.data.count_tokens([word for sentence in dataset for word in sentence])
-#vocab = nlp.Vocab(counter)
+counter = nlp.data.count_tokens([word for sentence in dataset for word in sentence])
+vocab = nlp.Vocab(counter)
 
 
 lstm, vocab = nlp.model.get_model('standard_lstm_lm_1500',
-                                dataset_name='wikitext-2',
+                                vocab = vocab,
                                 pretrained=True,
                                 ctx=context[0])
 print(lstm)
@@ -75,7 +75,7 @@ class CaptionEncoder(gluon.HybridBlock):
             self.begin_state = None
 
 
-    def hybrid_forward(self, F, data,hiddens, valid_length): # pylint: disable=arguments-differ
+    def hybrid_forward(self, F, data,hiddens): # pylint: disable=arguments-differ
         encoded,hiddens = self.encoder(self.embedding(data),hiddens)  # Shape(T, N, C)
         return encoded,hiddens
 
@@ -96,17 +96,28 @@ def get_features(data, valid_lengths):
     #mask = mask < valid_lengths.expand_dims(1).astype('float32')
     print(data.shape)
     data = mx.nd.transpose(data)
-    o = lstm.embedding(data)
+    #o = lstm.embedding(data)
     #print(o.shape)
-    output,hidden= lstm.encoder(o,hidden_state)
+    #output,(hidden,cell)= lstm.encoder(o,hidden_state)
+    output, (hidden, cell) = new_model(data, hidden_state)
+    #hidden = mx.nd.transpose(hidden,axes=(1,0,2))
     print(output.shape)
-    print(hidden[0].shape)
+    print(hidden.shape)
     return (output,hidden)
 
 #batch = next(iter(data_loader))
+for batch in data_loader:
+    data,length = batch
+    data = data.as_in_context(context[0])
+    length = length.as_in_context(context[0])
+    features, hiddens = get_features(data, length)
+    hiddens = nd.concat(hiddens[0],hiddens[1],dim=1)
+    print(hiddens.shape)
+    hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
+    print(hiddens.size())
 
-data = new_array.as_in_context(context[0])
-length = lens.as_in_context(context[0])
-features,hiddens = get_features(data,length)
-print([x.shape for x in hiddens])
+# data = new_array.as_in_context(context[0])
+# length = lens.as_in_context(context[0])
+# features,hiddens = get_features(data,length)
+# print([x for x in hiddens])
 
