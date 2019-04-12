@@ -25,11 +25,12 @@ from sg2im.crn import RefinementNetwork
 from sg2im.layout import boxes_to_layout, masks_to_layout
 from sg2im.layers import build_mlp
 from sg2im.context import Context
+from sg2im.lstm_embedding import LSTM_Embedding
 
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
-               gconv_dim=128, gconv_hidden_dim=512,
-               gconv_pooling='avg', gconv_num_layers=5, emd_dim = 128,
+               gconv_dim=128, gconv_hidden_dim=512, lstm_hid_dim=3000,
+               gconv_pooling='avg', gconv_num_layers=5, emb_dim=128,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=0,
@@ -44,6 +45,7 @@ class Sg2ImModel(nn.Module):
     self.vocab = vocab
     self.image_size = image_size
     self.layout_noise_dim = layout_noise_dim
+    self.lstm_hid_dim = lstm_hid_dim
 
     num_objs = len(vocab['object_idx_to_name'])
     num_preds = len(vocab['pred_idx_to_name'])
@@ -84,9 +86,10 @@ class Sg2ImModel(nn.Module):
     rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
 
+    self.lstm_embedding = LSTM_Embedding(input_dim=lstm_hid_dim, noise_dim=layout_noise_dim, output_dim=emb_dim)
+    
     refinement_kwargs = {
-      'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
-      'emb_dim': emb_dim,
+      'dims': (gconv_dim + layout_noise_dim + emb_dim,) + refinement_dims,
       'normalization': normalization,
       'activation': activation,
     }
@@ -107,7 +110,7 @@ class Sg2ImModel(nn.Module):
     return nn.Sequential(*layers)
 
   def forward(self, objs, triples, obj_to_img=None,
-              boxes_gt=None, masks_gt=None):
+              boxes_gt=None, masks_gt=None, lstm_hidden=None):
     """
     Required Inputs:
     - objs: LongTensor of shape (O,) giving categories for all objects
@@ -120,6 +123,7 @@ class Sg2ImModel(nn.Module):
       all objects are assumed to belong to the same image.
     - boxes_gt: FloatTensor of shape (O, 4) giving boxes to use for computing
       the spatial layout; if not given then use predicted boxes.
+    - lstm_hidden: Tensor of shape (N, self.lstm_hid_dim)
     """
     O, T = objs.size(0), triples.size(0)
     s, p, o = triples.chunk(3, dim=1)           # All have shape (T, 1)
@@ -161,8 +165,13 @@ class Sg2ImModel(nn.Module):
       layout_masks = masks_pred if masks_gt is None else masks_gt
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
-
-    if self.layout_noise_dim > 0:
+    
+    if lstm_hidden:
+        assert lstm_hidden.size()[0] is layout.size()[0]
+        assert lstm_hidden.size()[1] is self.lstm_hid_dim
+        lstm_embedding_vec = lstm_embedding(lstm_hidden)
+        layout = torch.cat([layout, lstm_embedding_vec], dim=1)
+    elif self.layout_noise_dim > 0:  # if not using lstm embedding
       N, C, H, W = layout.size()
       noise_shape = (N, self.layout_noise_dim, H, W)
       layout_noise = torch.randn(noise_shape, dtype=layout.dtype,

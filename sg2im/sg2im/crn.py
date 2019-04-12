@@ -33,12 +33,12 @@ ICCV 2017
 
 
 class RefinementModule(nn.Module):
-  def __init__(self, layout_dim, input_dim, output_dim, emb_dim,
+  def __init__(self, layout_dim, input_dim, output_dim,
                normalization='instance', activation='leakyrelu'):
     super(RefinementModule, self).__init__()
     
     layers = []
-    layers.append(nn.Conv2d(layout_dim + input_dim + emb_dim, output_dim,
+    layers.append(nn.Conv2d(layout_dim + input_dim, output_dim,
                             kernel_size=3, padding=1))
     layers.append(get_normalization_2d(output_dim, normalization))
     layers.append(get_activation(activation))
@@ -51,42 +51,29 @@ class RefinementModule(nn.Module):
         nn.init.kaiming_normal_(layer.weight)
     self.net = nn.Sequential(*layers)
 
-  def forward(self, layout, feats, embedding):
+  def forward(self, layout, feats):
     _, _, HH, WW = layout.size()
-    N, _, H, W = feats.size()
+    _, _, H, W = feats.size()
     assert HH >= H
     if HH > H:
       factor = round(HH // H)
       assert HH % factor == 0
       assert WW % factor == 0 and WW // factor == W
       layout = F.avg_pool2d(layout, kernel_size=factor, stride=factor)
-    
-    # Replcate the embedding vector to N x emb_dim x H x W
-    embedding = embedding.reshape(1, -1, 1, 1)
-    ee = embedding
-    for _ in range(N - 1):
-        embedding = torch.cat([embedding, ee], dim=0)
-    ee = embedding
-    for _ in range(H):
-        embedding = torch.cat([embedding, ee], dim=2)
-    ee = embedding
-    for _ in range(W):
-        embedding = torch.cat([embedding, ee], dim=3)
-
-    net_input = torch.cat([layout, feats, embedding], dim=1)
+    net_input = torch.cat([layout, feats], dim=1)
     out = self.net(net_input)
     return out
 
 
 class RefinementNetwork(nn.Module):
-  def __init__(self, dims, emb_dim, normalization='instance', activation='leakyrelu'):
+  def __init__(self, dims, normalization='instance', activation='leakyrelu'):
     super(RefinementNetwork, self).__init__()
     layout_dim = dims[0]
     self.refinement_modules = nn.ModuleList()
     for i in range(1, len(dims)):
       input_dim = 1 if i == 1 else dims[i - 1]
       output_dim = dims[i]
-      mod = RefinementModule(layout_dim, input_dim, output_dim, emb_dim,
+      mod = RefinementModule(layout_dim, input_dim, output_dim,
                              normalization=normalization, activation=activation)
       self.refinement_modules.append(mod)
     output_conv_layers = [
@@ -98,13 +85,12 @@ class RefinementNetwork(nn.Module):
     nn.init.kaiming_normal_(output_conv_layers[2].weight)
     self.output_conv = nn.Sequential(*output_conv_layers)
 
-  def forward(self, layout, embedding):
+  def forward(self, layout):
     """
     Output will have same size as layout
     """
     # H, W = self.output_size
     N, _, H, W = layout.size()
-    emb_dim =
     self.layout = layout
 
     # Figure out size of input
@@ -119,7 +105,7 @@ class RefinementNetwork(nn.Module):
     feats = torch.zeros(N, 1, input_H, input_W).to(layout)
     for mod in self.refinement_modules:
       feats = F.upsample(feats, scale_factor=2, mode='nearest')
-      feats = mod(layout, feats, embedding)
+      feats = mod(layout, feats)
 
     out = self.output_conv(feats)
     return out
