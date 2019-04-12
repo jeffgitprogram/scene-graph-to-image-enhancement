@@ -18,7 +18,7 @@ from mxnet import nd
 import gluonnlp as nlp
 
 from .utils import imagenet_preprocess, Resize
-
+from sg2im.captionencoder import CaptionEncoder
 class CocoCaptionDataSet(Dataset):
   def __init__(self, image_dir,captions_json,instances_json, stuff_json=None,
                stuff_only=True, image_size=(64, 64), mask_size=16,
@@ -183,6 +183,30 @@ class CocoCaptionDataSet(Dataset):
         caption = random.choice(captions)
         new_img_to_captions[image_id].append(caption)
     self.image_id_to_captions = new_img_to_captions
+
+    num_gpus = 1
+    self.context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
+    self.lstm, self.sent_vocab = nlp.model.get_model('standard_lstm_lm_1500',
+                                      dataset_name='wikitext-2',
+                                      pretrained=True,
+                                      ctx=mx.cpu())
+    #print(self.sent_vocab)
+    new_model = CaptionEncoder()
+    new_model.embedding = self.lstm.embedding
+    new_model.encoder = self.lstm.encoder
+    new_model.begin_state = self.lstm.begin_state
+    new_model.hybridize()
+    print(new_model)
+    self.caption_encoder = new_model
+
+    new_img_to_captions = defaultdict(list)
+    for image_id in self.image_ids:
+        caption = self.image_id_to_captions[image_id]
+        caption = self.tokenizer(caption[0].lower()) + ['<eos>']
+        length = len(caption)
+        caption = self.sent_vocab[caption]
+        new_img_to_captions[image_id]= (caption, length)
+    self.image_id_to_captions = new_img_to_captions
     # new_img_to_captions = defaultdict(list)
     # words = []
     # for image_id in self.image_ids:
@@ -194,14 +218,7 @@ class CocoCaptionDataSet(Dataset):
     # self.counter = nlp.data.count_tokens(words)
     # self.sentvocab = nlp.Vocab(self.counter)
     # self.image_id_to_captions = new_img_to_captions
-    #
-    # new_img_to_captions = defaultdict(list)
-    # for image_id in self.image_ids:
-    #     caption =  self.image_id_to_captions[image_id]
-    #     length = len(caption)
-    #     caption = self.sentvocab[caption]
-    #     new_img_to_captions[image_id]=(caption,length)
-    # self.image_id_to_captions = new_img_to_captions
+
 
   def set_image_size(self, image_size):
         print('called set_image_size', image_size)
@@ -256,8 +273,18 @@ class CocoCaptionDataSet(Dataset):
         # for caption in self.image_id_to_captions[image_id]:
         #     caption = ['<bos>'] + self.tokenizer(caption.lower()) + ['<sos>']
         #     captions.append(caption)
-        caption = self.image_id_to_captions[image_id]
-        return image,caption
+        # Create batch of sentence features
+        caption,valid_len = self.image_id_to_captions[image_id]
+        sentence = nd.array([caption])
+        #sentence = sentence.as_in_context(self.context[0])
+        length = nd.array(valid_len)
+        #length = length.as_in_context(self.context[0])
+        features, hiddens = self.get_features(self.caption_encoder,sentence, length)
+        hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+        hiddens = torch.from_numpy(hiddens.asnumpy())
+        print(hiddens.size())
+
+        return image,hiddens
 
   def coco_numerize_captions(self,vocab):
       # captions = []
@@ -278,7 +305,18 @@ class CocoCaptionDataSet(Dataset):
           new_img_to_captions[image_id] = (caption, length)
       self.image_id_to_captions = new_img_to_captions
 
-
+  def get_features(self,model,data,valid_lengths):
+      # length = data.shape[1]
+      batch_size = data.shape[0]
+      hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size)
+      # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
+      # mask = mask < valid_lengths.expand_dims(1).astype('float32')
+      #print(data.shape)
+      data = mx.nd.transpose(data)
+      output, (hidden, cell) = model(data, hidden_state)
+      # hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
+      #print(hidden.shape)
+      return (output, hidden)
 
 def coco_caption_collate_fn(batch):
     """
@@ -286,21 +324,21 @@ def coco_caption_collate_fn(batch):
     DataLoader. Returns a tuple of the following:
 
     """
-    all_captions,all_imgs,all_caption_lens = [],[],[]
+    all_hiddens,all_imgs= [],[]
     #all_cap_to_img = []
-    for i, (img,(caption,length)) in enumerate(batch):
+    for i, (img,hidden) in enumerate(batch):
         #C = len(captions)
         all_imgs.append(img[None])
-        all_captions.append(caption)
-        all_caption_lens.append(length)
+        all_hiddens.append(hidden)
         #all_cap_to_img.extend(np.full(C,i))
-    max_len = max(all_caption_lens)
-    batch_size = len(all_caption_lens)
-    new_array = nd.zeros((batch_size, max_len), dtype='int')
-    for i in range(batch_size):
-        new_array[i, :all_caption_lens[i]] = all_captions[i]
-    all_captions = new_array
-    all_caption_lens = nd.array(all_caption_lens)
+    #max_len = max(all_caption_lens)
+    #batch_size = len(all_caption_lens)
+    #new_array = nd.zeros((batch_size, max_len), dtype='int')
+    #for i in range(batch_size):
+    #    new_array[i, :all_caption_lens[i]] = all_captions[i]
+    #all_captions = new_array
+    #all_caption_lens = nd.array(all_caption_lens)
     all_imgs = torch.cat(all_imgs)
-    out = (all_imgs,all_captions,all_caption_lens)
+    all_hiddens = torch.cat(all_hiddens)
+    out = (all_imgs,all_hiddens)
     return out

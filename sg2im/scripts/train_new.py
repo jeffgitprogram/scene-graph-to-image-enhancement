@@ -21,6 +21,7 @@ import json
 import math
 from collections import defaultdict
 import random
+import io
 
 import numpy as np
 import torch
@@ -29,8 +30,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+import warnings
+warnings.filterwarnings('ignore')
+import mxnet as mx
+from mxnet import gluon
+from mxnet import nd
+import gluonnlp as nlp
+
 from sg2im.data import imagenet_deprocess_batch
 from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
+from sg2im.data.coco_caption import CocoCaptionDataSet,coco_caption_collate_fn
 from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
 from sg2im.losses import get_gan_losses
@@ -38,11 +47,12 @@ from sg2im.metrics import jaccard
 from sg2im.model import Sg2ImModel
 from sg2im.utils import int_tuple, float_tuple, str_tuple
 from sg2im.utils import timeit, bool_flag, LossManager
+from sg2im.captionencoder import CaptionEncoder
 
 torch.backends.cudnn.benchmark = True
 
 VG_DIR = os.path.expanduser('datasets/vg')
-COCO_DIR = os.path.expanduser('datasets/coco')
+COCO_DIR = os.path.expanduser('../datasets/coco')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='coco', choices=['vg', 'coco'])
@@ -76,10 +86,14 @@ parser.add_argument('--coco_train_image_dir',
          default=os.path.join(COCO_DIR, 'images/train2017'))
 parser.add_argument('--coco_val_image_dir',
          default=os.path.join(COCO_DIR, 'images/val2017'))
+parser.add_argument('--coco_train_captions_json',
+         default=os.path.join(COCO_DIR, 'annotations/captions_train2017.json'))
 parser.add_argument('--coco_train_instances_json',
          default=os.path.join(COCO_DIR, 'annotations/instances_train2017.json'))
 parser.add_argument('--coco_train_stuff_json',
          default=os.path.join(COCO_DIR, 'annotations/stuff_train2017.json'))
+parser.add_argument('--coco_val_captions_json',
+         default=os.path.join(COCO_DIR, 'annotations/captions_val2017.json'))
 parser.add_argument('--coco_val_instances_json',
          default=os.path.join(COCO_DIR, 'annotations/instances_val2017.json'))
 parser.add_argument('--coco_val_stuff_json',
@@ -230,6 +244,7 @@ def build_img_discriminator(args, vocab):
 def build_coco_dsets(args):
   dset_kwargs = {
     'image_dir': args.coco_train_image_dir,
+    'captions_json': args.coco_train_captions_json,
     'instances_json': args.coco_train_instances_json,
     'stuff_json': args.coco_train_stuff_json,
     'stuff_only': args.coco_stuff_only,
@@ -243,13 +258,14 @@ def build_coco_dsets(args):
     'include_other': args.coco_include_other,
     'include_relationships': args.include_relationships,
   }
-  train_dset = CocoSceneGraphDataset(**dset_kwargs)
+  train_dset = CocoCaptionDataSet(**dset_kwargs)
   num_objs = train_dset.total_objects()
   num_imgs = len(train_dset)
   print('Training dataset has %d images and %d objects' % (num_imgs, num_objs))
   print('(%.2f objects per image)' % (float(num_objs) / num_imgs))
 
   dset_kwargs['image_dir'] = args.coco_val_image_dir
+  dset_kwargs['captions_json'] = args.coco_val_captions_json
   dset_kwargs['instances_json'] = args.coco_val_instances_json
   dset_kwargs['stuff_json'] = args.coco_val_stuff_json
   dset_kwargs['max_samples'] = args.num_val_samples
@@ -291,7 +307,9 @@ def build_loaders(args):
     collate_fn = vg_collate_fn
   elif args.dataset == 'coco':
     vocab, train_dset, val_dset = build_coco_dsets(args)
-    collate_fn = coco_collate_fn
+    train_dset.coco_numerize_captions(vocab)
+    print("Training captions has been numerized./n")
+    collate_fn = coco_caption_collate_fn
 
   loader_kwargs = {
     'batch_size': args.batch_size,
@@ -300,9 +318,12 @@ def build_loaders(args):
     'collate_fn': collate_fn,
   }
   train_loader = DataLoader(train_dset, **loader_kwargs)
-  
+  print("Training data has been loaded")
+  val_dset.coco_numerize_captions(vocab)
+  print("Validation captions has been numerized./n")
   loader_kwargs['shuffle'] = args.shuffle_val
   val_loader = DataLoader(val_dset, **loader_kwargs)
+  print("Validation data has been loaded")
   return vocab, train_loader, val_loader
 
 
@@ -317,6 +338,7 @@ def check_model(args, t, loader, model):
     for batch in loader:
       batch = [tensor.cuda() for tensor in batch]
       masks = None
+      #TODO
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
       elif len(batch) == 7:
@@ -412,11 +434,41 @@ def calculate_model_losses(args, skip_pixel_loss, model, img, img_pred,
   return total_loss, losses
 
 
+def get_features(data,model,valid_lengths):
+  # length = data.shape[1]
+  batch_size = data.shape[0]
+  hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size, ctx=context[0])
+  # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
+  # mask = mask < valid_lengths.expand_dims(1).astype('float32')
+  #print(data.shape)
+  data = mx.nd.transpose(data)
+  output, (hidden, cell) = model(data, hidden_state)
+  # hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
+  #print(hidden.shape)
+  return (output, hidden)
+
 def main(args):
   print(args)
   check_args(args)
   float_dtype = torch.cuda.FloatTensor
   long_dtype = torch.cuda.LongTensor
+
+  #Load Pretrained LSTM and get it vocab
+  num_gpus = 1
+  context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
+  lstm, vocab = nlp.model.get_model('standard_lstm_lm_1500',
+                                    dataset_name='wikitext-2',
+                                    pretrained=True,
+                                    ctx=context[0])
+  print(vocab)
+
+  caption_encoder = CaptionEncoder()
+  caption_encoder.embedding = lstm.embedding
+  caption_encoder.encoder = lstm.encoder
+  caption_encoder.begin_state = lstm.begin_state
+  caption_encoder.hybridize()
+
+  print(caption_encoder)
 
   vocab, train_loader, val_loader = build_loaders(args)
   model, model_kwargs = build_model(args, vocab)
@@ -511,15 +563,32 @@ def main(args):
         model.eval()
         optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
       t += 1
-      batch = [tensor.cuda() for tensor in batch]
+      #batch = [tensor.cuda() for tensor in batch]
       masks = None
       if len(batch) == 6:
+        batch = [tensor.cuda() for tensor in batch]
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
-      elif len(batch) == 7:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img = batch
+      elif len(batch) == 9:
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,captions,valid_lengths = batch
+        imgs = imgs.cuda()
+        objs = objs.cuda()
+        boxes = boxes.cuda()
+        masks = masks.cuda()
+        triples = triples.cuda()
+        obj_to_img = obj_to_img.cuda()
+        triple_to_img = triple_to_img.cuda()
       else:
         assert False
       predicates = triples[:, 1]
+
+      #Create batch of sentence features
+      sentences = captions.as_in_context(context[0])
+      length = valid_lengths.as_in_context(context[0])
+      features, hiddens = get_features(sentences, length)
+      hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+      hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
+      print(hiddens.size())
+      print(imgs.size())
 
       with timeit('forward', args.timing):
         model_boxes = boxes
