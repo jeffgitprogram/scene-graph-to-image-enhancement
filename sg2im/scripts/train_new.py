@@ -111,6 +111,7 @@ parser.add_argument('--embedding_dim', default=128, type=int)
 parser.add_argument('--gconv_dim', default=128, type=int)
 parser.add_argument('--gconv_hidden_dim', default=512, type=int)
 parser.add_argument('--gconv_num_layers', default=5, type=int)
+parser.add_argument('--lstm_hidden_dim',default=3000, type=int)
 parser.add_argument('--mlp_normalization', default='none', type=str)
 parser.add_argument('--refinement_network_dims', default='1024,512,256,128,64', type=int_tuple)
 parser.add_argument('--normalization', default='batch')
@@ -198,6 +199,7 @@ def build_model(args, vocab):
       'activation': args.activation,
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
+      'lstm_hidden_dim':args.lstm_hidden_dim
     }
     model = Sg2ImModel(**kwargs)
   return model, kwargs
@@ -341,12 +343,12 @@ def check_model(args, t, loader, model):
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
       elif len(batch) == 7:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img = batch
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,hidden_h = batch
       predicates = triples[:, 1] 
 
       # Run the model as it has been run during training
       model_masks = masks
-      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks)
+      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks, lstm_hidden=hidden_h)
       imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
 
       skip_pixel_loss = False
@@ -367,13 +369,13 @@ def check_model(args, t, loader, model):
     samples = {}
     samples['gt_img'] = imgs
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, lstm_hidden=hidden_h)
     samples['gt_box_gt_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, lstm_hidden=hidden_h)
     samples['gt_box_pred_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img)
+    model_out = model(objs, triples, obj_to_img, lstm_hidden=hidden_h)
     samples['pred_box_pred_mask'] = model_out[0]
 
     for k, v in samples.items():
@@ -433,18 +435,18 @@ def calculate_model_losses(args, skip_pixel_loss, model, img, img_pred,
   return total_loss, losses
 
 
-def get_features(data,model,valid_lengths):
-  # length = data.shape[1]
-  batch_size = data.shape[0]
-  hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size, ctx=context[0])
-  # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
-  # mask = mask < valid_lengths.expand_dims(1).astype('float32')
-  #print(data.shape)
-  data = mx.nd.transpose(data)
-  output, (hidden, cell) = model(data, hidden_state)
-  # hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
-  #print(hidden.shape)
-  return (output, hidden)
+# def get_features(data,model,valid_lengths):
+#   # length = data.shape[1]
+#   batch_size = data.shape[0]
+#   hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size, ctx=context[0])
+#   # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
+#   # mask = mask < valid_lengths.expand_dims(1).astype('float32')
+#   #print(data.shape)
+#   data = mx.nd.transpose(data)
+#   output, (hidden, cell) = model(data, hidden_state)
+#   # hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
+#   #print(hidden.shape)
+#   return (output, hidden)
 
 def main(args):
   print(args)
@@ -561,7 +563,7 @@ def main(args):
         model_boxes = boxes
         model_masks = masks
         model_out = model(objs, triples, obj_to_img,
-                          boxes_gt=model_boxes, masks_gt=model_masks)
+                          boxes_gt=model_boxes, masks_gt=model_masks,lstm_hidden=caption_h)
         imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
       with timeit('loss', args.timing):
         # Skip the pixel loss if using GT boxes

@@ -169,7 +169,7 @@ class Sg2ImModel(nn.Module):
     if lstm_hidden:
         assert lstm_hidden.size()[0] is layout.size()[0]
         assert lstm_hidden.size()[1] is self.lstm_hid_dim
-        lstm_embedding_vec = lstm_embedding(lstm_hidden)
+        lstm_embedding_vec = self.lstm_embedding(lstm_hidden)
         layout = torch.cat([layout, lstm_embedding_vec], dim=1)
     elif self.layout_noise_dim > 0:  # if not using lstm embedding
       N, C, H, W = layout.size()
