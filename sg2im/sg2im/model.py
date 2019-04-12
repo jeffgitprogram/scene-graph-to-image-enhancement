@@ -25,10 +25,11 @@ from sg2im.crn import RefinementNetwork
 from sg2im.layout import boxes_to_layout, masks_to_layout
 from sg2im.layers import build_mlp
 from sg2im.context import Context
+from sg2im.lstm_embedding import LSTM_Embedding
 
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
-               gconv_dim=128, gconv_hidden_dim=512, lstm_hid_dim=1500,
+               gconv_dim=128, gconv_hidden_dim=512, lstm_hid_dim=3000,
                gconv_pooling='avg', gconv_num_layers=5, emb_dim=128,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
@@ -85,7 +86,7 @@ class Sg2ImModel(nn.Module):
     rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
 
-    self.context = Context(input_dim=lstm_hid_dim, noise_dim=layout_noise_dim, output_dim=emb_dim)
+    self.lstm_embedding = LSTM_Embedding(input_dim=lstm_hid_dim, noise_dim=layout_noise_dim, output_dim=emb_dim)
     
     refinement_kwargs = {
       'dims': (gconv_dim + layout_noise_dim + emb_dim,) + refinement_dims,
@@ -168,8 +169,8 @@ class Sg2ImModel(nn.Module):
     if lstm_hidden:
         assert lstm_hidden.size()[0] is layout.size()[0]
         assert lstm_hidden.size()[1] is self.lstm_hid_dim
-        lstm_embedding = Context(lstm_hidden)
-        layout = torch.cat([layout, lstm_embedding], dim=1)
+        lstm_embedding_vec = lstm_embedding(lstm_hidden)
+        layout = torch.cat([layout, lstm_embedding_vec], dim=1)
     elif self.layout_noise_dim > 0:  # if not using lstm embedding
       N, C, H, W = layout.size()
       noise_shape = (N, self.layout_noise_dim, H, W)

@@ -14,39 +14,35 @@ they never use pred_vecs
 
 class Context(nn.Module):
     """
-    Context network that pools hidden units generated from
-    LSTM and feeds through fc layer to generate embeddings
+    Scene-graph context network that pools features generated
+    GCN and feeds through fc layer to generate embedding
     """
     def __init__(self, 
-                 input_dim=1500,
-                 noise_dim=0,
-                 output_dim=128,
-                 H=64,
-                 W=64):
+                 input_dim=128, 
+                 output_dim=8):
         super(Context, self).__init__()
         self.input_dim = input_dim
-        self.noise_dim = noise_dim
         self.output_dim = output_dim
-        self.H = H
-        self.W = W
-        self.fc = nn.Linear(input_dim + noise_dim, output_dim * H * W)
-        self.leaky_relu = nn.RReLU()
+        self.fc = nn.Linear(input_dim, output_dim)
+        self.relu = nn.ReLU()
     
-    def forward(self, lstm_hidden):
+    def forward(self, vecs, pred_to_img):
         """
         Inputs:
-        - lstm_hidden: Tensor of shape (N, self.input_dim)
+        - vecs: Tensor of shape (O, D) giving vectors
         
         Returns:
-        - output: Tensor of shape (N, self.output_dim, H, W)
+        - out: Tensor of shape (D,)
         """
-        N, _ = lstm_hidden.size()
-        if noise_dim > 0:
-            noise_shape = (N, self.noise_dim)
-            noise = torch.randn(noise_shape)
-            input = torch.cat([lstm_hidden, noise], dim=1)
-        output = self.leaky_relu(self.fc(lstm_hidden))
-        return output.reshape(N, self.output_dim, self.H, self.W)
+        O, D = vecs.size()
+        N = pred_to_img.data.max().item() + 1
+        out = torch.zeros(N, D, dtype=vecs.dtype, device=vecs.device)
+        idx = pred_to_img.view(O,1).expand(O,D)
+        out = out.scatter_add(0, idx, vecs)
+        out = self.fc(out)
+        # TODO Do we need to add batch-norm?
+        out = self.relu(out)
+        return out
         
         
         
