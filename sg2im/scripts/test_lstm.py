@@ -184,20 +184,10 @@ def main(args):
     #     return (output, hidden)
 
     for batch in train_loader:
-        imgs,hiddens= batch
         batch = [torch.cuda() for torch in batch]
-        print(hiddens.size())
-        print(imgs.size())
-
-
-      # #Create batch of sentence features
-      # sentences = captions.as_in_context(context[0])
-      # length = valid_lengths.as_in_context(context[0])
-      # features, hiddens = get_features(sentences, length)
-      # hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
-      # hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
-      # print(hiddens.size())
-      # print(imgs.size())
+        masks = None
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img, caption_h = batch
+        print(caption_h.size())
 
 
 if __name__ == '__main__':

@@ -269,7 +269,7 @@ def build_coco_dsets(args):
   dset_kwargs['instances_json'] = args.coco_val_instances_json
   dset_kwargs['stuff_json'] = args.coco_val_stuff_json
   dset_kwargs['max_samples'] = args.num_val_samples
-  val_dset = CocoSceneGraphDataset(**dset_kwargs)
+  val_dset = CocoCaptionDataSet(**dset_kwargs)
 
   assert train_dset.vocab == val_dset.vocab
   vocab = json.loads(json.dumps(train_dset.vocab))
@@ -549,17 +549,9 @@ def main(args):
       batch = [tensor.cuda() for tensor in batch]
       masks = None
       if len(batch) == 6:
-        #batch = [tensor.cuda() for tensor in batch]
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
       elif len(batch) == 8:
         imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,caption_h = batch
-        # imgs = imgs.cuda()
-        # objs = objs.cuda()
-        # boxes = boxes.cuda()
-        # masks = masks.cuda()
-        # triples = triples.cuda()
-        # obj_to_img = obj_to_img.cuda()
-        # triple_to_img = triple_to_img.cuda()
       else:
         assert False
       predicates = triples[:, 1]
