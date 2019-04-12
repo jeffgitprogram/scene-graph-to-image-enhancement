@@ -38,7 +38,7 @@ from mxnet import nd
 import gluonnlp as nlp
 
 from sg2im.data import imagenet_deprocess_batch
-from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
+#from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
 from sg2im.data.coco_caption import CocoCaptionDataSet,coco_caption_collate_fn
 from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
@@ -307,7 +307,6 @@ def build_loaders(args):
     collate_fn = vg_collate_fn
   elif args.dataset == 'coco':
     vocab, train_dset, val_dset = build_coco_dsets(args)
-    train_dset.coco_numerize_captions(vocab)
     print("Training captions has been numerized./n")
     collate_fn = coco_caption_collate_fn
 
@@ -453,22 +452,6 @@ def main(args):
   float_dtype = torch.cuda.FloatTensor
   long_dtype = torch.cuda.LongTensor
 
-  #Load Pretrained LSTM and get it vocab
-  num_gpus = 1
-  context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
-  lstm, vocab = nlp.model.get_model('standard_lstm_lm_1500',
-                                    dataset_name='wikitext-2',
-                                    pretrained=True,
-                                    ctx=context[0])
-  print(vocab)
-
-  caption_encoder = CaptionEncoder()
-  caption_encoder.embedding = lstm.embedding
-  caption_encoder.encoder = lstm.encoder
-  caption_encoder.begin_state = lstm.begin_state
-  caption_encoder.hybridize()
-
-  print(caption_encoder)
 
   vocab, train_loader, val_loader = build_loaders(args)
   model, model_kwargs = build_model(args, vocab)
@@ -563,32 +546,24 @@ def main(args):
         model.eval()
         optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
       t += 1
-      #batch = [tensor.cuda() for tensor in batch]
+      batch = [tensor.cuda() for tensor in batch]
       masks = None
       if len(batch) == 6:
-        batch = [tensor.cuda() for tensor in batch]
+        #batch = [tensor.cuda() for tensor in batch]
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
-      elif len(batch) == 9:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,captions,valid_lengths = batch
-        imgs = imgs.cuda()
-        objs = objs.cuda()
-        boxes = boxes.cuda()
-        masks = masks.cuda()
-        triples = triples.cuda()
-        obj_to_img = obj_to_img.cuda()
-        triple_to_img = triple_to_img.cuda()
+      elif len(batch) == 8:
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,caption_h = batch
+        # imgs = imgs.cuda()
+        # objs = objs.cuda()
+        # boxes = boxes.cuda()
+        # masks = masks.cuda()
+        # triples = triples.cuda()
+        # obj_to_img = obj_to_img.cuda()
+        # triple_to_img = triple_to_img.cuda()
       else:
         assert False
       predicates = triples[:, 1]
 
-      #Create batch of sentence features
-      sentences = captions.as_in_context(context[0])
-      length = valid_lengths.as_in_context(context[0])
-      features, hiddens = get_features(sentences, length)
-      hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
-      hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
-      print(hiddens.size())
-      print(imgs.size())
 
       with timeit('forward', args.timing):
         model_boxes = boxes

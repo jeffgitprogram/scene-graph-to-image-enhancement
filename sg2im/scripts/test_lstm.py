@@ -147,13 +147,6 @@ def build_caption_loaders(args):
 def main(args):
     print("start")
     print(args)
-    num_gpus = 1
-    context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
-    lstm, vocab = nlp.model.get_model('standard_lstm_lm_1500',
-                                      dataset_name='wikitext-2',
-                                      pretrained=True,
-                                      ctx=context[0])
-    print(vocab)
 
     #train_dset = build_coco_caption_dsets(args)
     train_loader = build_caption_loaders(args)
@@ -197,7 +190,14 @@ def main(args):
         print(imgs.size())
 
 
-
+      # #Create batch of sentence features
+      # sentences = captions.as_in_context(context[0])
+      # length = valid_lengths.as_in_context(context[0])
+      # features, hiddens = get_features(sentences, length)
+      # hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+      # hiddens = torch.from_numpy(hiddens.as_in_context(mx.cpu()).asnumpy()).cuda()
+      # print(hiddens.size())
+      # print(imgs.size())
 
 
 if __name__ == '__main__':

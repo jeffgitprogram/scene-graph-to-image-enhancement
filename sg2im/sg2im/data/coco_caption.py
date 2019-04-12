@@ -282,7 +282,7 @@ class CocoCaptionDataSet(Dataset):
         features, hiddens = self.get_features(self.caption_encoder,sentence, length)
         hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
         hiddens = torch.from_numpy(hiddens.asnumpy())
-        print(hiddens.size())
+        #print(hiddens.size())
 
         return image,hiddens
 
