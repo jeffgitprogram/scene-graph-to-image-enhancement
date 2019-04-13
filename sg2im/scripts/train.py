@@ -35,8 +35,6 @@ from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
 from sg2im.losses import get_gan_losses
 from sg2im.metrics import jaccard
-from sg2im.model import Sg2ImModel
-from sg2im.model_graphblock import Sg2ImModelGB
 from sg2im.utils import int_tuple, float_tuple, str_tuple
 from sg2im.utils import timeit, bool_flag, LossManager
 
@@ -140,8 +138,9 @@ parser.add_argument('--checkpoint_name', default='checkpoint')
 parser.add_argument('--checkpoint_start_from', default=None)
 parser.add_argument('--restore_from_checkpoint', default=False, type=bool_flag)
 
-# Model options
-parser.add_argument('--model_type', default='sg2im', type=str)
+# Context embedding dims
+parser.add_argument('--gcontext_dim', default=0, type=int)
+parser.add_argument('--dcontext_dim', default=0, type=int)
 
 def add_loss(total_loss, curr_loss, loss_dict, loss_name, weight=1):
   curr_loss = curr_loss * weight
@@ -165,10 +164,7 @@ def build_model(args, vocab):
   if args.checkpoint_start_from is not None:
     checkpoint = torch.load(args.checkpoint_start_from)
     kwargs = checkpoint['model_kwargs']
-    if args.model_type=='sg2imgb':
-        model = Sg2ImModelGB(**kwargs)
-    else:
-        model = Sg2ImModel(**kwargs)
+    model = Sg2ImModel(**kwargs)
     raw_state_dict = checkpoint['model_state']
     state_dict = {}
     for k, v in raw_state_dict.items():
@@ -190,11 +186,9 @@ def build_model(args, vocab):
       'activation': args.activation,
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
+      'context_embedding_dim': args.gcontext_dim
     }
-    if args.model_type=='sg2imgb':
-        model = Sg2ImModelGB(**kwargs)
-    else:
-        model = Sg2ImModel(**kwargs)
+    model = Sg2ImModel(**kwargs)
   return model, kwargs
 
 
@@ -334,8 +328,8 @@ def check_model(args, t, loader, model):
 
       # Run the model as it has been run during training
       model_masks = masks
-      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks)
-      imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
+      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks, pred_to_img=triple_to_img)
+      imgs_pred, boxes_pred, masks_pred, predicate_scores, context = model_out
 
       skip_pixel_loss = False
       total_loss, losses =  calculate_model_losses(
@@ -535,10 +529,11 @@ def main(args):
         model_masks = masks
         model_out = model(objs, triples, obj_to_img,
                           boxes_gt=model_boxes, masks_gt=model_masks)
-        imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
+        imgs_pred, boxes_pred, masks_pred, predicate_scores, context = model_out
       with timeit('loss', args.timing):
         # Skip the pixel loss if using GT boxes
         skip_pixel_loss = (model_boxes is None)
+        # Is context included here?
         total_loss, losses =  calculate_model_losses(
                                 args, skip_pixel_loss, model, imgs, imgs_pred,
                                 boxes, boxes_pred, masks, masks_pred,

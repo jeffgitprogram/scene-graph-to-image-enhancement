@@ -33,7 +33,7 @@ class Sg2ImModel(nn.Module):
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=0,
-               **kwargs):
+               context_embedding_dim=0, **kwargs):
     super(Sg2ImModel, self).__init__()
 
     # We used to have some additional arguments: 
@@ -44,6 +44,7 @@ class Sg2ImModel(nn.Module):
     self.vocab = vocab
     self.image_size = image_size
     self.layout_noise_dim = layout_noise_dim
+    self.context_embedding_dim = context_embedding_dim
 
     num_objs = len(vocab['object_idx_to_name'])
     num_preds = len(vocab['pred_idx_to_name'])
@@ -74,15 +75,20 @@ class Sg2ImModel(nn.Module):
       self.gconv_net = GraphTripleConvNet(**gconv_kwargs)
 
     box_net_dim = 4
-    box_net_layers = [gconv_dim, gconv_hidden_dim, box_net_dim]
+    box_net_layers = [gconv_dim+context_embedding_dim, gconv_hidden_dim, box_net_dim]
     self.box_net = build_mlp(box_net_layers, batch_norm=mlp_normalization)
 
     self.mask_net = None
     if mask_size is not None and mask_size > 0:
-      self.mask_net = self._build_mask_net(num_objs, gconv_dim, mask_size)
+      self.mask_net = self._build_mask_net(num_objs, gconv_dim+context_embedding_dim, mask_size)
 
-    rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
+    rel_aux_layers = [2 * embedding_dim + context_embedding_dim, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
+    
+    # Add context network
+    self.context_network = None
+    if self.context_embedding_dim != 0:
+        self.context_network = Context(gconv_dim, context_embedding_dim)
 
     refinement_kwargs = {
       'dims': (gconv_dim + layout_noise_dim,) + refinement_dims,
@@ -105,7 +111,7 @@ class Sg2ImModel(nn.Module):
     layers.append(nn.Conv2d(dim, output_dim, kernel_size=1))
     return nn.Sequential(*layers)
 
-  def forward(self, objs, triples, obj_to_img=None,
+  def forward(self, objs, triples, obj_to_img=None, pred_to_img=None,
               boxes_gt=None, masks_gt=None):
     """
     Required Inputs:
@@ -138,13 +144,28 @@ class Sg2ImModel(nn.Module):
       obj_vecs, pred_vecs = self.gconv(obj_vecs, pred_vecs, edges)
     if self.gconv_net is not None:
       obj_vecs, pred_vecs = self.gconv_net(obj_vecs, pred_vecs, edges)
+    
+    # Bounding boxes should be conditioned on context
+    # because layout is finalized at this step
+    context = None
+    if self.context_network is not None:
+        context, embedding = self.context_network(pred_vecs, pred_to_img)
+        # Concatenate global context to each object depending on which image it is from
+        # Probably not an efficient way to do this
+        obj_with_context = torch.stack([torch.cat((obj_vecs[i],embedding[obj_to_img[i].item()])) for i in range(O)])
+        boxes_pred = self.box_net(obj_with_context)
 
-    boxes_pred = self.box_net(obj_vecs)
+        masks_pred = None
+        if self.mask_net is not None:
+          mask_scores = self.mask_net(obj_with_context.view(O, -1, 1, 1))
+          masks_pred = mask_scores.squeeze(1).sigmoid()
+    else:
+        boxes_pred = self.box_net(obj_vecs)
 
-    masks_pred = None
-    if self.mask_net is not None:
-      mask_scores = self.mask_net(obj_vecs.view(O, -1, 1, 1))
-      masks_pred = mask_scores.squeeze(1).sigmoid()
+        masks_pred = None
+        if self.mask_net is not None:
+          mask_scores = self.mask_net(obj_vecs.view(O, -1, 1, 1))
+          masks_pred = mask_scores.squeeze(1).sigmoid()
 
     s_boxes, o_boxes = boxes_pred[s], boxes_pred[o]
     s_vecs, o_vecs = obj_vecs_orig[s], obj_vecs_orig[o]
@@ -168,7 +189,7 @@ class Sg2ImModel(nn.Module):
                                  device=layout.device)
       layout = torch.cat([layout, layout_noise], dim=1)
     img = self.refinement_net(layout)
-    return img, boxes_pred, masks_pred, rel_scores
+    return img, boxes_pred, masks_pred, rel_scores, context
 
   def encode_scene_graphs(self, scene_graphs):
     """
@@ -199,7 +220,7 @@ class Sg2ImModel(nn.Module):
       # We just got a single scene graph, so promote it to a list
       scene_graphs = [scene_graphs]
 
-    objs, triples, obj_to_img = [], [], []
+    objs, triples, obj_to_img, pred_to_img = [], [], [], []
     obj_offset = 0
     for i, sg in enumerate(scene_graphs):
       # Insert dummy __image__ object and __in_image__ relationships
@@ -219,15 +240,18 @@ class Sg2ImModel(nn.Module):
         if pred_idx is None:
           raise ValueError('Relationship "%s" not in vocab' % p)
         triples.append([s + obj_offset, pred_idx, o + obj_offset])
+        # To pool context we need to match relations to images
+        pred_to_img.append(i) 
       obj_offset += len(sg['objects'])
     device = next(self.parameters()).device
     objs = torch.tensor(objs, dtype=torch.int64, device=device)
     triples = torch.tensor(triples, dtype=torch.int64, device=device)
     obj_to_img = torch.tensor(obj_to_img, dtype=torch.int64, device=device)
-    return objs, triples, obj_to_img
+    pred_to_img = torch.tensor(pred_to_img, dtype=torch.int64, device=device)
+    return objs, triples, obj_to_img, pred_to_img
 
   def forward_json(self, scene_graphs):
     """ Convenience method that combines encode_scene_graphs and forward. """
-    objs, triples, obj_to_img = self.encode_scene_graphs(scene_graphs)
-    return self.forward(objs, triples, obj_to_img)
+    objs, triples, obj_to_img, pred_to_img = self.encode_scene_graphs(scene_graphs)
+    return self.forward(objs, triples, obj_to_img, pred_to_img)
 

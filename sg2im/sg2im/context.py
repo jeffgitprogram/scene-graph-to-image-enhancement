@@ -4,12 +4,6 @@ import torch.nn as nn
 """
 Module for scene graph context
 
-!!! 
-I think the scene-graph context paper only pools predicate embeddings
-from GCN because if you look at the code for sg-to-img (model.py line 140)
-they never use pred_vecs
-!!!
-
 """
 
 class Context(nn.Module):
