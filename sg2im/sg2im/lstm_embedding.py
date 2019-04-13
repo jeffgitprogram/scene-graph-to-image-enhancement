@@ -30,7 +30,7 @@ class LSTM_Embedding(nn.Module):
         - output: Tensor of shape (N, self.output_dim, H, W)
         """
         N, _ = lstm_hidden.size()
-        if noise_dim > 0:
+        if self.noise_dim > 0:
             noise_shape = (N, self.noise_dim)
             noise = torch.randn(noise_shape)
             input = torch.cat([lstm_hidden, noise], dim=1)

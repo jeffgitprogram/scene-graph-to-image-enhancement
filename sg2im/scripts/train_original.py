@@ -21,7 +21,6 @@ import json
 import math
 from collections import defaultdict
 import random
-import io
 
 import numpy as np
 import torch
@@ -30,16 +29,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-import warnings
-warnings.filterwarnings('ignore')
-import mxnet as mx
-from mxnet import gluon
-from mxnet import nd
-import gluonnlp as nlp
-
 from sg2im.data import imagenet_deprocess_batch
-#from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
-from sg2im.data.coco_caption import CocoCaptionDataSet,coco_caption_collate_fn
+from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
 from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
 from sg2im.losses import get_gan_losses
@@ -47,12 +38,11 @@ from sg2im.metrics import jaccard
 from sg2im.model import Sg2ImModel
 from sg2im.utils import int_tuple, float_tuple, str_tuple
 from sg2im.utils import timeit, bool_flag, LossManager
-from sg2im.captionencoder import CaptionEncoder
 
 torch.backends.cudnn.benchmark = True
 
 VG_DIR = os.path.expanduser('datasets/vg')
-COCO_DIR = os.path.expanduser('../datasets/coco')
+COCO_DIR = os.path.expanduser('datasets/coco')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='coco', choices=['vg', 'coco'])
@@ -86,14 +76,10 @@ parser.add_argument('--coco_train_image_dir',
          default=os.path.join(COCO_DIR, 'images/train2017'))
 parser.add_argument('--coco_val_image_dir',
          default=os.path.join(COCO_DIR, 'images/val2017'))
-parser.add_argument('--coco_train_captions_json',
-         default=os.path.join(COCO_DIR, 'annotations/captions_train2017.json'))
 parser.add_argument('--coco_train_instances_json',
          default=os.path.join(COCO_DIR, 'annotations/instances_train2017.json'))
 parser.add_argument('--coco_train_stuff_json',
          default=os.path.join(COCO_DIR, 'annotations/stuff_train2017.json'))
-parser.add_argument('--coco_val_captions_json',
-         default=os.path.join(COCO_DIR, 'annotations/captions_val2017.json'))
 parser.add_argument('--coco_val_instances_json',
          default=os.path.join(COCO_DIR, 'annotations/instances_val2017.json'))
 parser.add_argument('--coco_val_stuff_json',
@@ -111,7 +97,6 @@ parser.add_argument('--embedding_dim', default=128, type=int)
 parser.add_argument('--gconv_dim', default=128, type=int)
 parser.add_argument('--gconv_hidden_dim', default=512, type=int)
 parser.add_argument('--gconv_num_layers', default=5, type=int)
-parser.add_argument('--lstm_hidden_dim',default=3000, type=int)
 parser.add_argument('--mlp_normalization', default='none', type=str)
 parser.add_argument('--refinement_network_dims', default='1024,512,256,128,64', type=int_tuple)
 parser.add_argument('--normalization', default='batch')
@@ -199,7 +184,6 @@ def build_model(args, vocab):
       'activation': args.activation,
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
-      'lstm_hidden_dim':args.lstm_hidden_dim
     }
     model = Sg2ImModel(**kwargs)
   return model, kwargs
@@ -246,7 +230,6 @@ def build_img_discriminator(args, vocab):
 def build_coco_dsets(args):
   dset_kwargs = {
     'image_dir': args.coco_train_image_dir,
-    'captions_json': args.coco_train_captions_json,
     'instances_json': args.coco_train_instances_json,
     'stuff_json': args.coco_train_stuff_json,
     'stuff_only': args.coco_stuff_only,
@@ -260,18 +243,17 @@ def build_coco_dsets(args):
     'include_other': args.coco_include_other,
     'include_relationships': args.include_relationships,
   }
-  train_dset = CocoCaptionDataSet(**dset_kwargs)
+  train_dset = CocoSceneGraphDataset(**dset_kwargs)
   num_objs = train_dset.total_objects()
   num_imgs = len(train_dset)
   print('Training dataset has %d images and %d objects' % (num_imgs, num_objs))
   print('(%.2f objects per image)' % (float(num_objs) / num_imgs))
 
   dset_kwargs['image_dir'] = args.coco_val_image_dir
-  dset_kwargs['captions_json'] = args.coco_val_captions_json
   dset_kwargs['instances_json'] = args.coco_val_instances_json
   dset_kwargs['stuff_json'] = args.coco_val_stuff_json
   dset_kwargs['max_samples'] = args.num_val_samples
-  val_dset = CocoCaptionDataSet(**dset_kwargs)
+  val_dset = CocoSceneGraphDataset(**dset_kwargs)
 
   assert train_dset.vocab == val_dset.vocab
   vocab = json.loads(json.dumps(train_dset.vocab))
@@ -309,8 +291,7 @@ def build_loaders(args):
     collate_fn = vg_collate_fn
   elif args.dataset == 'coco':
     vocab, train_dset, val_dset = build_coco_dsets(args)
-    print("Training captions has been numerized./n")
-    collate_fn = coco_caption_collate_fn
+    collate_fn = coco_collate_fn
 
   loader_kwargs = {
     'batch_size': args.batch_size,
@@ -319,12 +300,9 @@ def build_loaders(args):
     'collate_fn': collate_fn,
   }
   train_loader = DataLoader(train_dset, **loader_kwargs)
-  print("Training data has been loaded")
-  val_dset.coco_numerize_captions(vocab)
-  print("Validation captions has been numerized./n")
+  
   loader_kwargs['shuffle'] = args.shuffle_val
   val_loader = DataLoader(val_dset, **loader_kwargs)
-  print("Validation data has been loaded")
   return vocab, train_loader, val_loader
 
 
@@ -339,16 +317,15 @@ def check_model(args, t, loader, model):
     for batch in loader:
       batch = [tensor.cuda() for tensor in batch]
       masks = None
-      #TODO
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
       elif len(batch) == 7:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,hidden_h = batch
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img = batch
       predicates = triples[:, 1] 
 
       # Run the model as it has been run during training
       model_masks = masks
-      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks, lstm_hidden=hidden_h)
+      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks)
       imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
 
       skip_pixel_loss = False
@@ -369,13 +346,13 @@ def check_model(args, t, loader, model):
     samples = {}
     samples['gt_img'] = imgs
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks)
     samples['gt_box_gt_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes)
     samples['gt_box_pred_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img)
     samples['pred_box_pred_mask'] = model_out[0]
 
     for k, v in samples.items():
@@ -435,25 +412,11 @@ def calculate_model_losses(args, skip_pixel_loss, model, img, img_pred,
   return total_loss, losses
 
 
-# def get_features(data,model,valid_lengths):
-#   # length = data.shape[1]
-#   batch_size = data.shape[0]
-#   hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size, ctx=context[0])
-#   # mask = mx.nd.arange(length).expand_dims(0).broadcast_axes(axis=(0,), size=(batch_size,))
-#   # mask = mask < valid_lengths.expand_dims(1).astype('float32')
-#   #print(data.shape)
-#   data = mx.nd.transpose(data)
-#   output, (hidden, cell) = model(data, hidden_state)
-#   # hidden = mx.nd.transpose(hidden, axes=(1, 0, 2))
-#   #print(hidden.shape)
-#   return (output, hidden)
-
 def main(args):
   print(args)
   check_args(args)
   float_dtype = torch.cuda.FloatTensor
   long_dtype = torch.cuda.LongTensor
-
 
   vocab, train_loader, val_loader = build_loaders(args)
   model, model_kwargs = build_model(args, vocab)
@@ -552,18 +515,17 @@ def main(args):
       masks = None
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
-      elif len(batch) == 8:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,caption_h = batch
+      elif len(batch) == 7:
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img = batch
       else:
         assert False
       predicates = triples[:, 1]
-
 
       with timeit('forward', args.timing):
         model_boxes = boxes
         model_masks = masks
         model_out = model(objs, triples, obj_to_img,
-                          boxes_gt=model_boxes, masks_gt=model_masks,lstm_hidden=caption_h)
+                          boxes_gt=model_boxes, masks_gt=model_masks)
         imgs_pred, boxes_pred, masks_pred, predicate_scores = model_out
       with timeit('loss', args.timing):
         # Skip the pixel loss if using GT boxes
