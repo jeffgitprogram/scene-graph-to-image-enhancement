@@ -50,7 +50,7 @@ from sg2im.utils import timeit, bool_flag, LossManager
 torch.backends.cudnn.benchmark = True
 
 VG_DIR = os.path.expanduser('datasets/vg')
-COCO_DIR = os.path.expanduser('../datasets/coco')
+COCO_DIR = os.path.expanduser('datasets/coco')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', default='coco', choices=['vg', 'coco'])
