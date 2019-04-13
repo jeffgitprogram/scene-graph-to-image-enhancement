@@ -38,7 +38,6 @@ from mxnet import nd
 import gluonnlp as nlp
 
 from sg2im.data import imagenet_deprocess_batch
-#from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
 from sg2im.data.coco_caption import CocoCaptionDataSet,coco_caption_collate_fn
 from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.discriminators import PatchDiscriminator, AcCropDiscriminator
@@ -47,7 +46,6 @@ from sg2im.metrics import jaccard
 from sg2im.model import Sg2ImModel
 from sg2im.utils import int_tuple, float_tuple, str_tuple
 from sg2im.utils import timeit, bool_flag, LossManager
-from sg2im.captionencoder import CaptionEncoder
 
 torch.backends.cudnn.benchmark = True
 
