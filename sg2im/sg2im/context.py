@@ -38,11 +38,10 @@ class Context(nn.Module):
         N = pred_to_img.data.max().item() + 1
         out = torch.zeros(N, D, dtype=vecs.dtype, device=vecs.device)
         idx = pred_to_img.view(O,1).expand(O,D)
-        out = out.scatter_add(0, idx, vecs)
-        out = self.fc(out)
-        # TODO Do we need to add batch-norm?
-        out = self.relu(out)
-        return out
+        context = out.scatter_add(0, idx, vecs)
+        embedding = self.fc(context)
+        out = self.relu(embedding)
+        return context, embedding
         
         
         

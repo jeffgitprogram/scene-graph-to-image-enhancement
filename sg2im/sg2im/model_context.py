@@ -39,11 +39,11 @@ class Sg2ImModelContext(nn.Module):
       self.gconv = nn.Linear(embedding_dim, gconv_dim)
     elif gconv_num_layers > 0:
       gconv_kwargs = {
-        'input_dim': embedding_dim, # 128
-        'output_dim': gconv_dim, # 128
-        'hidden_dim': gconv_hidden_dim, # 512
-        'pooling': gconv_pooling, # avg
-        'mlp_normalization': mlp_normalization, #none
+        'input_dim': embedding_dim,
+        'output_dim': gconv_dim, 
+        'hidden_dim': gconv_hidden_dim, 
+        'pooling': gconv_pooling, 
+        'mlp_normalization': mlp_normalization, 
       }
       self.gconv = GraphTripleConv(**gconv_kwargs)
 
@@ -64,15 +64,13 @@ class Sg2ImModelContext(nn.Module):
 
     self.mask_net = None
     if mask_size is not None and mask_size > 0:
-      self.mask_net = self._build_mask_net(num_objs, gconv_dim, mask_size)
+      self.mask_net = self._build_mask_net(num_objs, gconv_dim+context_embedding_dim, mask_size)
 
     rel_aux_layers = [2 * embedding_dim + 8, gconv_hidden_dim, num_preds]
     self.rel_aux_net = build_mlp(rel_aux_layers, batch_norm=mlp_normalization)
     
     # Add context network
     self.context_network = Context()
-#     self.noise_layout = nn.Linear(context_embedding_dim + layout_noise_dim, 
-#                                   (context_embedding_dim + layout_noise_dim)*64*64)
         
 
     refinement_kwargs = {
@@ -132,15 +130,15 @@ class Sg2ImModelContext(nn.Module):
 
     # Bounding boxes should be conditioned on context
     # because layout is finalized at this step
-    context = self.context_network(pred_vecs, pred_to_img)
+    context, embedding = self.context_network(pred_vecs, pred_to_img)
     # Concatenate global context to each object depending on which image it is from
     # Probably not an efficient way to do this
-    obj_with_context = torch.stack([torch.cat((obj_vecs[i],context[obj_to_img[i].item()])) for i in range(O)])
+    obj_with_context = torch.stack([torch.cat((obj_vecs[i],embedding[obj_to_img[i].item()])) for i in range(O)])
     boxes_pred = self.box_net(obj_with_context)
 
     masks_pred = None
     if self.mask_net is not None:
-      mask_scores = self.mask_net(obj_vecs.view(O, -1, 1, 1))
+      mask_scores = self.mask_net(obj_with_context.view(O, -1, 1, 1))
       masks_pred = mask_scores.squeeze(1).sigmoid()
 
     s_boxes, o_boxes = boxes_pred[s], boxes_pred[o]
@@ -167,7 +165,7 @@ class Sg2ImModelContext(nn.Module):
         
     
     img = self.refinement_net(layout)
-    return img, boxes_pred, masks_pred, rel_scores
+    return img, boxes_pred, masks_pred, rel_scores, context
 
   def encode_scene_graphs(self, scene_graphs):
     """
