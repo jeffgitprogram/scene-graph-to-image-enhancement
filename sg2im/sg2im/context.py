@@ -4,12 +4,6 @@ import torch.nn as nn
 """
 Module for scene graph context
 
-!!! 
-I think the scene-graph context paper only pools predicate embeddings
-from GCN because if you look at the code for sg-to-img (model.py line 140)
-they never use pred_vecs
-!!!
-
 """
 
 class Context(nn.Module):
@@ -38,11 +32,10 @@ class Context(nn.Module):
         N = pred_to_img.data.max().item() + 1
         out = torch.zeros(N, D, dtype=vecs.dtype, device=vecs.device)
         idx = pred_to_img.view(O,1).expand(O,D)
-        out = out.scatter_add(0, idx, vecs)
-        out = self.fc(out)
-        # TODO Do we need to add batch-norm?
-        out = self.relu(out)
-        return out
+        context = out.scatter_add(0, idx, vecs)
+        embedding = self.fc(context)
+        out = self.relu(embedding)
+        return context, embedding
         
         
         

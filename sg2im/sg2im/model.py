@@ -29,8 +29,8 @@ from sg2im.lstm_embedding import LSTM_Embedding
 
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
-               gconv_dim=128, gconv_hidden_dim=512, lstm_hid_dim=3000,
-               gconv_pooling='avg', gconv_num_layers=5, emb_dim=128,
+               gconv_dim=128, gconv_hidden_dim=512,
+               gconv_pooling='avg', gconv_num_layers=5,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
                mask_size=None, mlp_normalization='none', layout_noise_dim=0,context_embedding_dim=0,
@@ -190,7 +190,7 @@ class Sg2ImModel(nn.Module):
       layout_masks = masks_pred if masks_gt is None else masks_gt
       layout = masks_to_layout(obj_vecs, layout_boxes, layout_masks,
                                obj_to_img, H, W)
-    
+
     if lstm_hidden:
         assert lstm_hidden.size()[0] is layout.size()[0]
         assert lstm_hidden.size()[1] is self.lstm_hid_dim

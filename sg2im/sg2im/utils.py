@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Copyright 2018 Google LLC
 #
@@ -89,4 +89,5 @@ class LossManager(object):
 
   def items(self):
     return self.all_losses.items()
+
 
