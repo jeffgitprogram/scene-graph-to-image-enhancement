@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from context import Context
 
 class LSTM_Embedding(nn.Module):
     """
