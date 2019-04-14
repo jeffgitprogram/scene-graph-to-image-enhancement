@@ -238,9 +238,7 @@ class CocoCaptionDataSet(Dataset):
       self.vocab['pred_name_to_idx'][name] = idx
 
     #Load Caption Encoder
-    num_gpus = 1
-    self.context = [mx.gpu(i) for i in range(num_gpus)] if num_gpus else [mx.cpu()]
-    self.lstm, self.sent_vocab = nlp.model.get_model('standard_lstm_lm_1500',
+    self.lstm, self.sent_vocab = nlp.model.get_model('standard_lstm_lm_650',
                                       dataset_name='wikitext-2',
                                       pretrained=True,
                                       ctx=mx.cpu())
@@ -422,7 +420,8 @@ class CocoCaptionDataSet(Dataset):
     length = nd.array(valid_len)
     # length = length.as_in_context(self.context[0])
     features, hiddens = self.get_features(self.caption_encoder, sentence, length)
-    hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+    #hiddens = nd.concat(hiddens[0], hiddens[1], dim=1)
+    hiddens = hiddens[1]
     hiddens = torch.from_numpy(hiddens.asnumpy())
     # print(hiddens.size())
     return image, objs, boxes, masks, triples, hiddens

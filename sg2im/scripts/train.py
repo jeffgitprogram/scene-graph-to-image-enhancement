@@ -343,12 +343,12 @@ def check_model(args, t, loader, model):
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
       elif len(batch) == 8:
-        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,hidden_h = batch
+        imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,caption_h = batch
       predicates = triples[:, 1] 
 
       # Run the model as it has been run during training
       model_masks = masks
-      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks, pred_to_img=triple_to_img, lstm_hidden=hidden_h)
+      model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=model_masks, pred_to_img=triple_to_img, lstm_hidden=caption_h)
       imgs_pred, boxes_pred, masks_pred, predicate_scores, context = model_out
 
       skip_pixel_loss = False
@@ -400,7 +400,8 @@ def check_model(args, t, loader, model):
     'obj_to_img': obj_to_img.detach().cpu().clone(),
     'triple_to_img': triple_to_img.detach().cpu().clone(),
     'boxes_pred': boxes_pred.detach().cpu().clone(),
-    'masks_pred': masks_pred_to_store
+    'masks_pred': masks_pred_to_store,
+    'caption_hidden':caption_h.detach().cpu.clone()
   }
   out = [mean_losses, samples, batch_data, avg_iou]
 
@@ -565,6 +566,7 @@ def main(args):
         model_out = model(objs, triples, obj_to_img,
                           boxes_gt=model_boxes, masks_gt=model_masks, pred_to_img=triple_to_img, lstm_hidden=caption_h)
         imgs_pred, boxes_pred, masks_pred, predicate_scores, context = model_out
+        del caption_h
       with timeit('loss', args.timing):
         # Skip the pixel loss if using GT boxes
         skip_pixel_loss = (model_boxes is None)

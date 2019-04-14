@@ -35,6 +35,7 @@ class LSTM_Embedding(nn.Module):
             noise_shape = (N, self.noise_dim)
             noise = torch.randn(noise_shape).cuda()
             input = torch.cat([lstm_hidden, noise], dim=1)
+            del noise
         output = self.leaky_relu(self.fc(input))
         return output.reshape(N, self.output_dim, self.H, self.W)
         
