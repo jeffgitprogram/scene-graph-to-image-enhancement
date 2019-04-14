@@ -61,7 +61,7 @@ parser.add_argument('--num_iterations', default=1000000, type=int)
 parser.add_argument('--learning_rate', default=1e-4, type=float)
 
 # Switch the generator to eval mode after this many iterations
-parser.add_argument('--eval_mode_after', default=100000, type=int)
+parser.add_argument('--eval_mode_after', default=200000, type=int)
 
 # Dataset options common to both VG and COCO
 parser.add_argument('--image_size', default='64,64', type=int_tuple)
@@ -369,13 +369,13 @@ def check_model(args, t, loader, model):
     samples = {}
     samples['gt_img'] = imgs
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, lstm_hidden=caption_h)
     samples['gt_box_gt_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, lstm_hidden=caption_h)
     samples['gt_box_pred_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, lstm_hidden=hidden_h)
+    model_out = model(objs, triples, obj_to_img, lstm_hidden=caption_h)
     samples['pred_box_pred_mask'] = model_out[0]
 
     for k, v in samples.items():

@@ -29,7 +29,7 @@ from sg2im.lstm_embedding import LSTM_Embedding
 
 class Sg2ImModel(nn.Module):
   def __init__(self, vocab, image_size=(64, 64), embedding_dim=64,
-               lstm_hid_dim=3000, gconv_dim=128, gconv_hidden_dim=512,
+               lstm_hid_dim=650, gconv_dim=128, gconv_hidden_dim=512,
                gconv_pooling='avg', gconv_num_layers=5, emb_dim=128,
                refinement_dims=(1024, 512, 256, 128, 64),
                normalization='batch', activation='leakyrelu-0.2',
