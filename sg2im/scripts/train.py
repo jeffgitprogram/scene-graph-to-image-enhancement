@@ -369,13 +369,13 @@ def check_model(args, t, loader, model):
     samples = {}
     samples['gt_img'] = imgs
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, lstm_hidden=caption_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, masks_gt=masks, pred_to_img=triple_to_img, lstm_hidden=caption_h)
     samples['gt_box_gt_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, lstm_hidden=caption_h)
+    model_out = model(objs, triples, obj_to_img, boxes_gt=boxes, pred_to_img=triple_to_img, lstm_hidden=caption_h)
     samples['gt_box_pred_mask'] = model_out[0]
 
-    model_out = model(objs, triples, obj_to_img, lstm_hidden=caption_h)
+    model_out = model(objs, triples, obj_to_img, pred_to_img=triple_to_img, lstm_hidden=caption_h)
     samples['pred_box_pred_mask'] = model_out[0]
 
     for k, v in samples.items():
