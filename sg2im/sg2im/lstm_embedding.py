@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from context import Context
+from sg2im.context import Context
 
 class LSTM_Embedding(nn.Module):
     """
@@ -13,7 +13,7 @@ class LSTM_Embedding(nn.Module):
                  output_dim=128,
                  H=64,
                  W=64):
-        super(Context, self).__init__()
+        super(LSTM_Embedding, self).__init__()
         self.input_dim = input_dim
         self.noise_dim = noise_dim
         self.output_dim = output_dim
@@ -33,9 +33,9 @@ class LSTM_Embedding(nn.Module):
         N, _ = lstm_hidden.size()
         if self.noise_dim > 0:
             noise_shape = (N, self.noise_dim)
-            noise = torch.randn(noise_shape)
+            noise = torch.randn(noise_shape).cuda()
             input = torch.cat([lstm_hidden, noise], dim=1)
-        output = self.leaky_relu(self.fc(lstm_hidden))
+        output = self.leaky_relu(self.fc(input))
         return output.reshape(N, self.output_dim, self.H, self.W)
         
         

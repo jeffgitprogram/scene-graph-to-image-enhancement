@@ -202,7 +202,7 @@ def build_model(args, vocab):
       'mask_size': args.mask_size,
       'layout_noise_dim': args.layout_noise_dim,
       'context_embedding_dim': args.gcontext_dim,
-      'lstm_hidden_dim':args.lstm_hidden_dim
+      'lstm_hid_dim':args.lstm_hidden_dim
     }
     model = Sg2ImModel(**kwargs)
   return model, kwargs
@@ -312,7 +312,7 @@ def build_loaders(args):
     collate_fn = vg_collate_fn
   elif args.dataset == 'coco':
     vocab, train_dset, val_dset = build_coco_dsets(args)
-    print("Training captions has been numerized./n")
+    print("Training captions has been numerized.")
     collate_fn = coco_caption_collate_fn
 
   loader_kwargs = {
@@ -323,8 +323,6 @@ def build_loaders(args):
   }
   train_loader = DataLoader(train_dset, **loader_kwargs)
   print("Training data has been loaded")
-  val_dset.coco_numerize_captions(vocab)
-  print("Validation captions has been numerized./n")
   loader_kwargs['shuffle'] = args.shuffle_val
   val_loader = DataLoader(val_dset, **loader_kwargs)
   print("Validation data has been loaded")
@@ -342,10 +340,9 @@ def check_model(args, t, loader, model):
     for batch in loader:
       batch = [tensor.cuda() for tensor in batch]
       masks = None
-      #TODO
       if len(batch) == 6:
         imgs, objs, boxes, triples, obj_to_img, triple_to_img = batch
-      elif len(batch) == 7:
+      elif len(batch) == 8:
         imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,hidden_h = batch
       predicates = triples[:, 1] 
 
