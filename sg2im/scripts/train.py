@@ -401,7 +401,7 @@ def check_model(args, t, loader, model):
     'triple_to_img': triple_to_img.detach().cpu().clone(),
     'boxes_pred': boxes_pred.detach().cpu().clone(),
     'masks_pred': masks_pred_to_store,
-    'caption_hidden':caption_h.detach().cpu.clone()
+    'caption_hidden':caption_h.detach().cpu().clone()
   }
   out = [mean_losses, samples, batch_data, avg_iou]
 
