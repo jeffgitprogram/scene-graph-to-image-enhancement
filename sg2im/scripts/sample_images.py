@@ -29,7 +29,8 @@ from torch.utils.data import DataLoader
 from scipy.misc import imsave, imresize
 
 from sg2im.data import imagenet_deprocess_batch
-from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
+from sg2im.data.coco_caption import CocoCaptionDataSet,coco_caption_collate_fn
+#from sg2im.data.coco import CocoSceneGraphDataset, coco_collate_fn
 from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.data.utils import split_graph_batch
 from sg2im.model import Sg2ImModel
@@ -43,7 +44,7 @@ parser.add_argument('--checkpoint_list', default=None)
 parser.add_argument('--model_mode', default='eval', choices=['train', 'eval'])
 
 # Shared dataset options
-parser.add_argument('--dataset', default='vg', choices=['coco', 'vg'])
+parser.add_argument('--dataset', default='coco', choices=['coco', 'vg'])
 parser.add_argument('--image_size', default=(64, 64), type=int_tuple)
 parser.add_argument('--batch_size', default=24, type=int)
 parser.add_argument('--shuffle', default=False, type=bool_flag)
@@ -71,13 +72,15 @@ parser.add_argument('--instances_json',
         default=os.path.join(COCO_DIR, 'annotations/instances_val2017.json'))
 parser.add_argument('--stuff_json',
         default=os.path.join(COCO_DIR, 'annotations/stuff_val2017.json'))
-
+parser.add_argument('--captions_json',
+         default=os.path.join(COCO_DIR, 'annotations/captions_val2017.json'))
 
 def build_coco_dset(args, checkpoint):
   checkpoint_args = checkpoint['args']
   print('include other: ', checkpoint_args.get('coco_include_other'))
   dset_kwargs = {
     'image_dir': args.coco_image_dir,
+    'captions_json': args.captions_json,
     'instances_json': args.instances_json,
     'stuff_json': args.stuff_json,
     'stuff_only': checkpoint_args['coco_stuff_only'],
@@ -89,8 +92,9 @@ def build_coco_dset(args, checkpoint):
     'instance_whitelist': checkpoint_args['instance_whitelist'],
     'stuff_whitelist': checkpoint_args['stuff_whitelist'],
     'include_other': checkpoint_args.get('coco_include_other', True),
+    'include_relationships': checkpoint_args['include_relationships'],
   }
-  dset = CocoSceneGraphDataset(**dset_kwargs)
+  dset = CocoCaptionDataSet(**dset_kwargs)
   return dset
 
 
@@ -112,7 +116,7 @@ def build_vg_dset(args, checkpoint):
 def build_loader(args, checkpoint):
   if args.dataset == 'coco':
     dset = build_coco_dset(args, checkpoint)
-    collate_fn = coco_collate_fn
+    collate_fn = coco_caption_collate_fn()
   elif args.dataset == 'vg':
     dset = build_vg_dset(args, checkpoint)
     collate_fn = vg_collate_fn
@@ -175,8 +179,8 @@ def run_model(args, checkpoint, output_dir, loader=None):
     masks = None
     if len(batch) == 6:
       imgs, objs, boxes, triples, obj_to_img, triple_to_img = [x.cuda() for x in batch]
-    elif len(batch) == 7:
-      imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img = [x.cuda() for x in batch]
+    elif len(batch) == 8:
+      imgs, objs, boxes, masks, triples, obj_to_img, triple_to_img,caption_h = [x.cuda() for x in batch]
 
     imgs_gt = imagenet_deprocess_batch(imgs)
     boxes_gt = None
@@ -188,7 +192,7 @@ def run_model(args, checkpoint, output_dir, loader=None):
 
     # Run the model with predicted masks
     model_out = model(objs, triples, obj_to_img,
-                      boxes_gt=boxes_gt, masks_gt=masks_gt)
+                      boxes_gt=boxes_gt, masks_gt=masks_gt,pred_to_img=triple_to_img, lstm_hidden=caption_h)
     imgs_pred, boxes_pred, masks_pred, _ = model_out
     imgs_pred = imagenet_deprocess_batch(imgs_pred)
 

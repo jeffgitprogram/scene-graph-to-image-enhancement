@@ -265,8 +265,8 @@ class Sg2ImModel(nn.Module):
     pred_to_img = torch.tensor(pred_to_img, dtype=torch.int64, device=device)
     return objs, triples, obj_to_img, pred_to_img
 
-  def forward_json(self, scene_graphs):
+  def forward_json(self, scene_graphs, caption_hidden):
     """ Convenience method that combines encode_scene_graphs and forward. """
     objs, triples, obj_to_img, pred_to_img = self.encode_scene_graphs(scene_graphs)
-    return self.forward(objs, triples, obj_to_img, pred_to_img)
+    return self.forward(objs, triples, obj_to_img, pred_to_img, lstm_hidden=caption_hidden)
 
