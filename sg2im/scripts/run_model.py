@@ -81,7 +81,9 @@ def main(args):
       sg_img_path = os.path.join(args.output_dir, 'sg%06d.png' % i)
       imwrite(sg_img_path, sg_img)
 
+def generateCaptionHidden(self):{
 
+}
 if __name__ == '__main__':
   args = parser.parse_args()
   main(args)
