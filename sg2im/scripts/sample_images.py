@@ -35,7 +35,7 @@ from sg2im.data.vg import VgSceneGraphDataset, vg_collate_fn
 from sg2im.data.utils import split_graph_batch
 from sg2im.model import Sg2ImModel
 from sg2im.utils import int_tuple, bool_flag
-from sg2im.vis import draw_scene_graph
+from sg2im.vis import draw_scene_graph, draw_layout
 
 
 parser = argparse.ArgumentParser()
@@ -162,6 +162,7 @@ def run_model(args, checkpoint, output_dir, loader=None):
 
   img_dir = makedir(output_dir, 'images')
   graph_dir = makedir(output_dir, 'graphs', args.save_graphs)
+  layout_dir = makedir(output_dir,'layout',args.save_layout)
   gt_img_dir = makedir(output_dir, 'images_gt', args.save_gt_imgs)
   data_path = os.path.join(output_dir, 'data.pt')
 
@@ -238,6 +239,10 @@ def run_model(args, checkpoint, output_dir, loader=None):
         graph_img = draw_scene_graph(vocab, objs[i], triples[i])
         graph_path = os.path.join(graph_dir, img_filename)
         imsave(graph_path, graph_img)
+      if args.save_layout:
+        layout_img = draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
+        layout_path = os.path.join(layout_dir, img_filename)
+        imsave(layout_path,layout_img)
       
       img_idx += 1
 
