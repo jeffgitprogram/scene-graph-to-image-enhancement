@@ -54,7 +54,7 @@ parser.add_argument('--save_gt_imgs', default=False, type=bool_flag)
 parser.add_argument('--save_graphs', default=False, type=bool_flag)
 parser.add_argument('--use_gt_boxes', default=False, type=bool_flag)
 parser.add_argument('--use_gt_masks', default=False, type=bool_flag)
-parser.add_argument('--save_layout', default=True, type=bool_flag)
+parser.add_argument('--save_layout', default=False, type=bool_flag)
 
 parser.add_argument('--output_dir', default='output')
 
