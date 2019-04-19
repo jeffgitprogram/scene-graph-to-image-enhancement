@@ -240,9 +240,7 @@ def run_model(args, checkpoint, output_dir, loader=None):
         graph_path = os.path.join(graph_dir, img_filename)
         imsave(graph_path, graph_img)
       if args.save_layout:
-        layout_img = draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
-        layout_path = os.path.join(layout_dir, img_filename)
-        imsave(layout_path,layout_img)
+        draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
       
       img_idx += 1
 
