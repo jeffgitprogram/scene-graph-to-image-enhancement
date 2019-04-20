@@ -24,7 +24,7 @@ import gluonnlp as nlp
 
 from sg2im.model import Sg2ImModel
 from sg2im.captionencoder import CaptionEncoder
-from sg2im.data.utils import imagenet_deprocess_batch
+from sg2im.data.utils import imagenet_deprocess_batch, split_graph_batch
 import sg2im.vis as vis
 
 
@@ -47,10 +47,16 @@ def main(args):
   if not os.path.isdir(args.output_dir):
     print('Output directory "%s" does not exist; creating it' % args.output_dir)
     os.makedirs(args.output_dir)
+
   layout_dir_name = os.path.join(args.output_dir, 'layout')
-  if not os.path.isdir(layout_dir_name)
+  if not os.path.isdir(layout_dir_name):
     print('Layout output directory "%s" does not exist; creating it' % layout_dir_name)
     os.makedirs(layout_dir_name)
+  if args.draw_scene_graphs == 1:
+    graph_dir_name = os.path.join(args.output_dir, 'graphs')
+    if not os.path.isdir(graph_dir_name):
+      print('Graph output directory "%s" does not exist; creating it' % graph_dir_name)
+      os.makedirs(graph_dir_name)
 
 
   if args.device == 'cpu':
@@ -87,11 +93,16 @@ def main(args):
   with open(args.scene_graphs_json, 'r') as f:
     scene_graphs = json.load(f)
   #Generate hiddens for captions
-  caption_hiddens = generateCaptionHidden(caption_encoder, sent_vocab,scene_graphs)
+  caption_hiddens = generateCaptionHidden(caption_encoder, sent_vocab, scene_graphs)
   # Run the model forward
   with torch.no_grad():
-    imgs, boxes_pred, masks_pred, _, _, objs = model.forward_json(scene_graphs,caption_hiddens)
+    imgs, boxes_pred, masks_pred, objs, triples, obj_to_img, pred_to_img = model.forward_json(scene_graphs,caption_hiddens)
   imgs = imagenet_deprocess_batch(imgs)
+
+  obj_data = [objs, boxes_pred, masks_pred]
+  _, obj_data = split_graph_batch(triples, obj_data, obj_to_img,
+                                  pred_to_img)
+  objs, boxes_pred, masks_pred = obj_data
 
   # Save the generated images
   for i in range(imgs.shape[0]):
@@ -105,21 +116,25 @@ def main(args):
 
 
   # Draw the scene graphs
+  if isinstance(scene_graphs, dict):
+    # We just got a single scene graph, so promote it to a list
+    scene_graphs = [scene_graphs]
   if args.draw_scene_graphs == 1:
     for i, sg in enumerate(scene_graphs):
       sg_img = vis.draw_scene_graph(sg['objects'], sg['relationships'])
-      sg_img_path = os.path.join(args.output_dir, 'sg%06d.png' % i)
+      sg_img_path = os.path.join(graph_dir_name, 'sg%06d.png' % i)
       imwrite(sg_img_path, sg_img)
 
 def generateCaptionHidden(encoder, vocab, scene_graphs):
   if isinstance(scene_graphs, dict):
-  # We just got a single scene graph, so promote it to a list
-    scene_graphs = [scene_graphs]
+   # We just got a single scene graph, so promote it to a list
+   scene_graphs = [scene_graphs]
+
   tokenizer = nlp.data.NLTKMosesTokenizer()
   hidden_set = []
   for i, sg in enumerate(scene_graphs):
     sentence = tokenizer(sg['caption'].lower()) + ['<eos>']
-    print(sentence)
+    #print(sentence)
     length = len(sentence)
     sentence = vocab[sentence]
     sentence = nd.array([sentence])
@@ -133,7 +148,7 @@ def generateCaptionHidden(encoder, vocab, scene_graphs):
   return hidden_set
 
 
-def get_features(self, model, data, valid_lengths):
+def get_features(model, data, valid_lengths):
     # length = data.shape[1]
     batch_size = data.shape[0]
     hidden_state = model.begin_state(func=mx.nd.zeros, batch_size=batch_size)

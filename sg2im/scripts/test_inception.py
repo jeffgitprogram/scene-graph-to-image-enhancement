@@ -21,7 +21,7 @@ parser.add_argument('--img_size', default=299, type=int)
 parser.add_argument('--batch_size', default=64, type=int)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 def load_image(filename, loader, volatile=False):
     """
@@ -56,7 +56,7 @@ def inception_score(net, loader):
         scores = []
         for batch_idx, images in enumerate(loader):
             images = images.to(device)
-            score, _ = net(images)
+            score = net(images)
             scores.append(score)
     scores = torch.cat(scores, 0)
     p_yx = F.softmax(scores)
@@ -75,7 +75,7 @@ def main(args):
     
     dataset = TestDataset(args.img_dir, loader)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
-    net = inception_v3(pretrained=True).to(device)
+    net = inception_v3(pretrained=True).type(dtype).to(device)
     net.eval()
     score = inception_score(net, dataloader)
     
