@@ -244,6 +244,7 @@ def run_model(args, checkpoint, output_dir, loader=None):
         layout_plt = draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
         layout_path = os.path.join(layout_dir, img_filename)
         layout_plt.savefig(layout_path)
+        layout_plt.clf()
 
       
       img_idx += 1
