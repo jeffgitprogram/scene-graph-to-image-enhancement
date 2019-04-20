@@ -268,5 +268,5 @@ class Sg2ImModel(nn.Module):
   def forward_json(self, scene_graphs, caption_hidden):
     """ Convenience method that combines encode_scene_graphs and forward. """
     objs, triples, obj_to_img, pred_to_img = self.encode_scene_graphs(scene_graphs)
-    return self.forward(objs, triples, obj_to_img, pred_to_img, lstm_hidden=caption_hidden)
+    return self.forward(objs, triples, obj_to_img, pred_to_img, lstm_hidden=caption_hidden),objs
 
