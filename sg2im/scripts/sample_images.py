@@ -25,6 +25,7 @@ import os
 import torch
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 from scipy.misc import imsave, imresize
 
@@ -240,7 +241,10 @@ def run_model(args, checkpoint, output_dir, loader=None):
         graph_path = os.path.join(graph_dir, img_filename)
         imsave(graph_path, graph_img)
       if args.save_layout:
-        draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
+        layout_plt = draw_layout(vocab,objs[i],boxes_pred[i],masks_pred[i],show_boxes=True)
+        layout_path = os.path.join(layout_dir, img_filename)
+        layout_plt.savefig(layout_path)
+
       
       img_idx += 1
 
