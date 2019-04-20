@@ -52,10 +52,12 @@ class TestDataset(Dataset):
         return image
         
 def inception_score(net, loader):
+    up = torch.Upsample(size=(299,299), mode='bilinear')
     with torch.no_grad():
         scores = []
         for batch_idx, images in enumerate(loader):
             images = images.to(device)
+            images = up(images)
             score, _ = net(images)
             scores.append(score)
     scores = torch.cat(scores, 0)
@@ -68,9 +70,12 @@ def inception_score(net, loader):
 def main(args):
     img_size = args.img_size
     loader = transforms.Compose([
-      transforms.Resize(img_size),
-      transforms.CenterCrop(img_size),
-      transforms.ToTensor(),
+#       transforms.Resize(img_size),
+#       transforms.CenterCrop(img_size),
+#       transforms.ToTensor(),
+        transforms.Scale(32),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ]) 
     
     dataset = TestDataset(args.img_dir, loader)
