@@ -77,6 +77,7 @@ def draw_layout(vocab, objs, boxes, masks=None, size=256,
         box = boxes[i]
 
         draw_box(box, colors[i], name)
+    return plt
 
 
 def draw_box(box, color, text=None):
